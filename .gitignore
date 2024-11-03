@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Calendar</title>
+    <style>
+        body { font-family: Arial, sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; }
+        .container { width: 800px; }
+        h2, h3 { text-align: center; }
+        input, button { width: 100%; padding: 10px; margin: 5px 0; }
+        button { background-color: #4CAF50; color: white; border: none; cursor: pointer; }
+        button:hover { background-color: #45a049; }
+        .message { text-align: center; margin-top: 15px; }
+        .calendar { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; margin-top: 20px; }
+        .day { border: 1px solid #ddd; padding: 10px; cursor: pointer; }
+        .day:hover { background-color: #f1f1f1; }
+        .event { background-color: #e7f4e4; padding: 5px; margin-top: 5px; border-radius: 3px; }
+        .modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background-color: white; padding: 20px; border: 1px solid #ddd; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1); }
+        .modal.active { display: block; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Simple Calendar</h2>
+        <div id="initial-screen">
+            <button onclick="showCreatePassword()">Create Password</button>
+            <button onclick="showLogin()">Login</button>
+        </div>
+        
+        <div id="create-password-screen" style="display: none;">
+            <h3>Create Password</h3>
+            <input type="password" id="new-password" placeholder="Enter new password">
+            <input type="password" id="confirm-password" placeholder="Confirm password">
+            <button onclick="createPassword()">Submit</button>
+            <div class="message" id="create-message"></div>
+        </div>
+
+        <div id="login-screen" style="display: none;">
+            <h3>Login</h3>
+            <input type="password" id="login-password" placeholder="Enter your password">
+            <button onclick="login()">Login</button>
+            <div class="message" id="login-message"></div>
+        </div>
+
+        <div id="calendar-screen" style="display: none;">
+            <h3>Calendar (1.11.2024 - 31.12.2025)</h3>
+            <div class="calendar" id="calendar"></div>
+            <div class="modal" id="event-modal">
+                <h4 id="event-date">Date</h4>
+                <textarea id="event-details" placeholder="Enter event details"></textarea>
+                <button onclick="saveEvent()">Save</button>
+                <button onclick="closeModal()">Close</button>
+                <div class="message" id="modal-message"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let storedPassword = null;
+        const events = {};
+
+        function showCreatePassword() {
+            document.getElementById('initial-screen').style.display = 'none';
+            document.getElementById('create-password-screen').style.display = 'block';
+        }
+
+        function showLogin() {
+            document.getElementById('initial-screen').style.display = 'none';
+            document.getElementById('login-screen').style.display = 'block';
+        }
+
+        function createPassword() {
+            const newPassword = document.getElementById('new-password').value;
+            const confirmPassword = document.getElementById('confirm-password').value;
+            const message = document.getElementById('create-message');
+
+            if (newPassword && newPassword === confirmPassword) {
+                storedPassword = newPassword;
+                message.textContent = 'Password created successfully!';
+                message.style.color = 'green';
+                setTimeout(() => {
+                    document.getElementById('create-password-screen').style.display = 'none';
+                    document.getElementById('login-screen').style.display = 'block';
+                }, 1500);
+            } else {
+                message.textContent = 'Passwords do not match. Try again.';
+                message.style.color = 'red';
+            }
+        }
+
+        function login() {
+            const loginPassword = document.getElementById('login-password').value;
+            const message = document.getElementById('login-message');
+
+            if (loginPassword && loginPassword === storedPassword) {
+                message.textContent = 'Login successful! Loading calendar...';
+                message.style.color = 'green';
+                setTimeout(() => {
+                    document.getElementById('login-screen').style.display = 'none';
+                    document.getElementById('calendar-screen').style.display = 'block';
+                    generateCalendar();
+                }, 1500);
+            } else {
+                message.textContent = 'Incorrect password. Please try again.';
+                message.style.color = 'red';
+            }
+        }
+
+        function generateCalendar() {
+            const calendarContainer = document.getElementById('calendar');
+            calendarContainer.innerHTML = '';
+            let startDate = new Date(2024, 10, 1);
+            const endDate = new Date(2025, 11, 31);
+
+            while (startDate <= endDate) {
+                const dayElement = document.createElement('div');
+                dayElement.className = 'day';
+                dayElement.textContent = startDate.toLocaleDateString();
+                dayElement.onclick = () => openModal(startDate);
+
+                if (events[startDate.toDateString()]) {
+                    const eventElement = document.createElement('div');
+                    eventElement.className = 'event';
+                    eventElement.textContent = events[startDate.toDateString()];
+                    dayElement.appendChild(eventElement);
+                }
+
+                calendarContainer.appendChild(dayElement);
+                startDate.setDate(startDate.getDate() + 1);
+            }
+        }
+
+        function openModal(date) {
+            document.getElementById('event-date').textContent = date.toLocaleDateString();
+            document.getElementById('event-details').value = events[date.toDateString()] || '';
+            document.getElementById('event-modal').classList.add('active');
+        }
+
+        function closeModal() {
+            document.getElementById('event-modal').classList.remove('active');
+        }
+
+        function saveEvent() {
+            const date = document.getElementById('event-date').textContent;
+            const details = document.getElementById('event-details').value;
+            const message = document.getElementById('modal-message');
+
+            if (details) {
+                events[new Date(date).toDateString()] = details;
+                message.textContent = 'Event saved!';
+                message.style.color = 'green';
+            } else {
+                delete events[new Date(date).toDateString()];
+                message.textContent = 'Event removed.';
+                message.style.color = 'red';
+            }
+
+            setTimeout(() => {
+                closeModal();
+                generateCalendar();
+            }, 1000);
+        }
+    </script>
+</body>
+</html>
