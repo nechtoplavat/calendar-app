@@ -147,7 +147,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .notebox small { display: block; font-family: var(--f-ui); font-size: 11.5px; color: var(--muted); }
 .log { list-style: none; margin: 0; padding: 0; font-family: var(--f-ui); font-size: 12.5px; color: var(--muted); display: grid; gap: 3px; }
 .pend { background: var(--peach-soft); border-radius: 10px; padding: 8px 10px; font-family: var(--f-ui); font-size: 13.5px; }
-.sms { max-width: 330px; background: var(--good-bg); color: var(--text); border-radius: 18px 18px 18px 4px; padding: 10px 14px; font-family: var(--f-ui); font-size: 14.5px; line-height: 1.4; }
+.sms { white-space: pre-line; max-width: 330px; background: var(--good-bg); color: var(--text); border-radius: 18px 18px 18px 4px; padding: 10px 14px; font-family: var(--f-ui); font-size: 14.5px; line-height: 1.4; }
 .ph { font-family: var(--f-ui); font-size: 12.5px; color: var(--muted); }
 .ph code { background: var(--cream); padding: 1px 5px; border-radius: 5px; }
 .bk .web { position: absolute; top: 4px; right: 5px; font-size: 9.5px; font-weight: 700; letter-spacing: .05em; background: var(--paper); border-radius: 4px; padding: 0 4px; }
@@ -227,11 +227,14 @@ td input.short { width: 80px; }
   function money(n) { return n.toLocaleString('cs-CZ') + ' Kč'; }
   function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
 
+  var SMS_RICH = '🦷 ADent. – termín potvrzen\n\nDobrý den, {jmeno},\ntěšíme se na vás:\n\n📅 {datum}\n🕐 {cas}\n🪥 {sluzba}\n📍 Stamicova 1968/21, 2. patro, dveře 207\n\nZrušení min. 24 h předem: 727 927 890';
+  var SMS_SHORT = 'ADent: termin {datum} v {cas} potvrzen. Stamicova 1968/21, 2. patro, dv. 207. Zruseni 24 h predem: 727 927 890';
   function defaultMsg() {
     return {
       intro: 'Dobrý den, {jmeno},\nděkujeme, že jste si u nás vybrali termín. Těšíme se na vás {datum} v {cas}.',
       smsOn: true,
-      sms: 'ADent: Dobry den {jmeno}, tesime se na vas {datum} v {cas} ({sluzba}). Zruseni nejpozdeji 24 h predem na 727 927 890.',
+      smsV: 3, smsUni: true,
+      sms: SMS_RICH,
       info: { vstupni: 'Na první návštěvu si prosím přineste kartičku pojišťovny a počítejte s tím, že probereme i domácí péči.', d05: 'Dětem pomáhá, když s nimi doma předem mluvíte o tom, že jdou „k paní, co čistí zoubky“. Klidně vezměte oblíbenou hračku.', d612: '', d1315: '', opak: '', docist: '', beleni: 'Bělení začíná konzultací a otisky. Samotné bělení pak děláte doma podle našich pokynů.' }
     };
   }
@@ -271,6 +274,7 @@ td input.short { width: 80px; }
   (function migrate() { var d = defaults().services; S.services.forEach(function (s, i) { if (!s.color) s.color = (d.filter(function (x) { return x.id === s.id; })[0] || {}).color || COLORS[i % COLORS.length]; });
     if (!S.lm) S.lm = { on: true, pct: 5, hours: 48 };
     if (!S.msg) S.msg = defaultMsg();
+    if (S.msg.smsV !== 3) { S.msg.sms = SMS_RICH; S.msg.smsUni = true; S.msg.smsV = 3; }
     S.bookings.forEach(function (b) { if (b.price == null) b.price = (svc(b.svc) || { price: 0 }).price; if (!b.log) b.log = []; if (b.inote == null) b.inote = ''; });
   })();
   function col(s) { return 'var(--' + ((s && s.color) || 'c8') + ')'; }
@@ -309,10 +313,19 @@ td input.short { width: 80px; }
       return v != null ? v : m;
     });
   }
-  function smsCountText(sp) { return 'Šablona má ' + sp.len + ' znaků (' + sp.parts + ' SMS). Jméno, datum a služba text ještě prodlouží, do jedné SMS se vejde 160 znaků. Diakritiku systém před odesláním odstraní, jinak by se do jedné SMS vešlo jen 70 znaků.'; }
+  function smsCountText(sp) {
+    return 'S ukázkovými údaji má zpráva ' + sp.len + ' znaků = ' + sp.parts + ' ' + (sp.parts === 1 ? 'SMS' : sp.parts < 5 ? 'SMS (účtují se ' + sp.parts + ')' : 'SMS (účtuje se ' + sp.parts + ')') + '. '
+      + (sp.uni ? 'S diakritikou a emoji se do jedné SMS vejde 70 znaků, u delší zprávy 67 na každý díl. Emoji se počítá za 2 znaky. Telefon zprávu i tak zobrazí jako jednu.' : 'Bez diakritiky se do jedné SMS vejde 160 znaků.');
+  }
+  var SAMPLE = { name: 'Jana Nováková', date: '2026-10-09', start: 420, svc: 'opak', price: 1600 };
+  function smsText(tpl, b) { var t = fill(tpl, b); return S.msg.smsUni ? t : plain(t); }
   // SMS bez diakritiky: do jedné zprávy se vejde 160 znaků místo 70
   function plain(t) { return String(t).normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
-  function smsParts(t) { t = plain(t); return { len: t.length, parts: Math.max(1, Math.ceil(t.length / 160)) }; }
+  // Délka SMS: bez diakritiky 160 znaků (díl 153), s diakritikou/emoji 70 (díl 67); emoji zabírá 2 znaky (t.length to počítá správně)
+  function smsParts(tpl) {
+    var t = smsText(tpl, SAMPLE), uni = /[^\x00-\x7F]/.test(t), one = uni ? 70 : 160, part = uni ? 67 : 153;
+    return { len: t.length, parts: t.length <= one ? 1 : Math.ceil(t.length / part), uni: uni };
+  }
   function minDate() { return addDays(today(), 1); }
   function maxDate() { var t = today(); return new Date(t.getFullYear(), t.getMonth() + S.horizonMonths, t.getDate()); }
 
@@ -419,7 +432,7 @@ td input.short { width: 80px; }
     }
     return '<div class="card"><span class="ok-badge">✓ Rezervace potvrzena</span><h2 style="margin-top:12px">Těšíme se na vás ' + esc(longDateCs(b.date)) + ' v ' + hm(b.start) + '</h2>'
       + '<p class="muted">Na ' + esc(b.email) + ' jsme poslali potvrzení' + (S.msg.smsOn ? ' a na ' + esc(b.phone) + ' SMS' : '') + '. Takhle budou zprávy vypadat:</p>' + mailHtml(b)
-      + (S.msg.smsOn ? '<p class="ph" style="margin:14px 0 6px">SMS na ' + esc(b.phone) + ':</p><div class="sms">' + esc(plain(fill(S.msg.sms, b))) + '</div>' : '')
+      + (S.msg.smsOn ? '<p class="ph" style="margin:14px 0 6px">SMS na ' + esc(b.phone) + ':</p><div class="sms">' + esc(smsText(S.msg.sms, b)) + '</div>' : '')
       + '<div class="row" style="margin-top:16px"><button type="button" class="btn" data-goadm>Podívat se do adminu</button><button type="button" class="btn ghost" data-new>Nová rezervace</button></div></div>';
   }
 
@@ -596,7 +609,10 @@ td input.short { width: 80px; }
       + '<div class="card"><h2>Zprávy pacientům</h2><p class="ph">Do textu můžete vložit: <code>{jmeno}</code> <code>{celejmeno}</code> <code>{datum}</code> <code>{cas}</code> <code>{sluzba}</code> <code>{cena}</code>. Systém je nahradí údaji pacienta.</p><div class="form" style="margin-top:10px">'
       + '<label for="msg-intro">Úvod potvrzovacího e-mailu<textarea id="msg-intro" data-msg="intro" rows="3">' + esc(S.msg.intro) + '</textarea></label>'
       + '<label class="check" for="msg-sms-on"><input type="checkbox" id="msg-sms-on"' + (S.msg.smsOn ? ' checked' : '') + '><span>Posílat po rezervaci i SMS</span></label>'
-      + (S.msg.smsOn ? '<label for="msg-sms">Text SMS<textarea id="msg-sms" data-msg="sms" rows="3">' + esc(S.msg.sms) + '</textarea><span class="hint" id="sms-count">' + smsCountText(smsParts(S.msg.sms)) + '</span></label>' : '')
+      + (S.msg.smsOn ? '<div class="row"><span class="ph">Předloha:</span><button type="button" class="btn sm ghost" data-smspreset="rich">Přehledná s emoji</button><button type="button" class="btn sm ghost" data-smspreset="short">Úsporná (1 SMS)</button></div>'
+        + '<label class="check" for="msg-uni"><input type="checkbox" id="msg-uni"' + (S.msg.smsUni ? ' checked' : '') + '><span>Psát s diakritikou a emoji (zpráva se rozdělí na víc SMS, cena úměrně vzroste)</span></label>'
+        + '<div class="two" style="align-items:start"><label for="msg-sms">Text SMS<textarea id="msg-sms" data-msg="sms" rows="13" style="font-size:14px">' + esc(S.msg.sms) + '</textarea><span class="hint" id="sms-count">' + smsCountText(smsParts(S.msg.sms)) + '</span></label>'
+        + '<div><span class="ph">Náhled v telefonu:</span><div class="sms" id="sms-prev" style="margin-top:6px">' + esc(smsText(S.msg.sms, SAMPLE)) + '</div></div></div>' : '')
       + '<h3 style="margin-top:6px">Text podle služby</h3><p class="ph" style="margin:0">Přidá se do e-mailu jen pacientům, kteří jdou na danou službu, třeba co si přinést.</p>'
       + S.services.map(function (x) { return '<label for="msg-i-' + x.id + '"><span><span class="dot" style="background:' + col(x) + '"></span>' + esc(x.name) + '</span><textarea id="msg-i-' + x.id + '" data-msg="info" data-svcid="' + x.id + '" rows="2" placeholder="Bez doplňujícího textu">' + esc(S.msg.info[x.id] || '') + '</textarea></label>'; }).join('')
       + '</div><p class="muted small" style="margin:12px 0 0">Oznámení o každé nové rezervaci, přesunu a zrušení chodí na info@adentdh.cz.</p></div></div>';
@@ -651,6 +667,7 @@ td input.short { width: 80px; }
     if (a.noconfirm !== undefined) { ui.confirm = false; return render(); }
     if (a.docancel !== undefined && sb) { sb.status = 'cancelled'; ui.sel = null; ui.confirm = false; save(); toast('Termín zrušen, pacientovi odešel e-mail'); return render(); }
     if (a.svcol) { var pc = a.svcol.split(':'); S.services[+pc[0]].color = pc[1]; save(); toast('Barva uložena'); return render(); }
+    if (a.smspreset) { S.msg.sms = a.smspreset === 'rich' ? SMS_RICH : SMS_SHORT; S.msg.smsUni = a.smspreset === 'rich'; save(); toast('Předloha SMS nastavena'); return render(); }
     if (a.delblk) { S.blocks = S.blocks.filter(function (k) { return k.id !== +a.delblk; }); save(); toast('Blokace smazána'); return render(); }
   });
 
@@ -717,6 +734,7 @@ td input.short { width: 80px; }
     if (t.id === 'lm-on') { S.lm.on = t.checked; save(); return toast('Uloženo'); }
     if (t.id === 'lm-pct') { S.lm.pct = +t.value; save(); return toast('Uloženo'); }
     if (t.id === 'lm-h') { S.lm.hours = +t.value; save(); return toast('Uloženo'); }
+    if (t.id === 'msg-uni') { S.msg.smsUni = t.checked; save(); render(); return toast('Uloženo'); }
     if (t.id === 'msg-sms-on') { S.msg.smsOn = t.checked; save(); render(); return toast('Uloženo'); }
     if (d.msg) { if (d.msg === 'info') S.msg.info[d.svcid] = t.value; else S.msg[d.msg] = t.value; save(); return toast('Uloženo'); }
     if (t.id === 's-h') { S.horizonMonths = +t.value; save(); return toast('Uloženo'); }
@@ -733,7 +751,10 @@ td input.short { width: 80px; }
     }
   });
   app.addEventListener('input', function (e) {
-    if (e.target.dataset.msg === 'sms') { var sp = smsParts(e.target.value), out = document.getElementById('sms-count'); if (out) out.textContent = smsCountText(sp); return; }
+    if (e.target.dataset.msg === 'sms') {
+      var v = e.target.value, out = document.getElementById('sms-count'), pv = document.getElementById('sms-prev');
+      if (out) out.textContent = smsCountText(smsParts(v)); if (pv) pv.textContent = smsText(v, SAMPLE); return;
+    }
     if (e.target.id === 'q') { ui.q = e.target.value; var pos = e.target.selectionStart; render(); var q = document.getElementById('q'); q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) {} }
   });
 
