@@ -187,6 +187,65 @@ td input.short { width: 80px; }
 .set-grid { display: grid; gap: 16px; }
 .toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--btn-bg); color: var(--btn-text); font-family: var(--f-ui); font-size: 14px; padding: 10px 18px; border-radius: 999px; z-index: 50; max-width: calc(100% - 32px); }
 @media (max-width: 560px) { .two { grid-template-columns: 1fr; } .card { padding: 16px; } h2 { font-size: 23px; } }
+/* ---------- Mobil ---------- */
+.card, .set-grid > *, .adm-grid > * { min-width: 0; }
+.set-grid { grid-template-columns: minmax(0, 1fr); }
+.dstrip { display: none; }
+.sheet-bar, .backdrop { display: none; }
+.wtables { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); gap: 16px; margin-top: 8px; }
+.wtables table { table-layout: fixed; }
+.wtables th:nth-child(1) { width: 40px; } .wtables th:nth-child(2) { width: 34px; }
+.wtables td { padding: 6px 4px; } .wtables td input[type=time] { padding: 6px 4px; min-width: 0; }
+td.num { white-space: nowrap; }
+.wtables h3 { font-size: 17px; margin-bottom: 4px; }
+@media (max-width: 700px) {
+  body { font-size: 17px; }
+  .wrap { padding-top: 12px; }
+  .brand { font-size: 24px; }
+  .top { gap: 8px; }
+  .seg { width: 100%; } .seg button { flex: 1; padding: 9px 8px; }
+  .demo-note { font-size: 12px; padding: 8px 10px; margin-bottom: 12px; }
+  .steps { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .steps li { white-space: nowrap; }
+  /* záložky a filtry v jednom posuvném řádku */
+  .tabs, .chips.scroll { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-inline: -16px; padding-inline: 16px; }
+  .tabs::-webkit-scrollbar, .chips.scroll::-webkit-scrollbar, .steps::-webkit-scrollbar, .dstrip::-webkit-scrollbar { display: none; }
+  .tab, .chip { white-space: nowrap; flex: none; }
+  .acct { padding: 8px 12px; font-size: 13px; }
+  .wk-bar h3 { font-size: 15px; }
+  .wk-bar > .btn { flex: 1; }
+  /* denní pohled */
+  .dstrip { display: flex; gap: 6px; overflow-x: auto; margin-bottom: 10px; scrollbar-width: none; }
+  .dstrip button { flex: 1 0 auto; min-width: 56px; border: 1px solid var(--line); background: var(--paper); border-radius: 12px; padding: 6px 4px; font-family: var(--f-ui); font-size: 12px; cursor: pointer; display: grid; gap: 1px; justify-items: center; }
+  .dstrip button b { font-size: 16px; }
+  .dstrip button[aria-pressed="true"] { background: var(--btn-bg); color: var(--btn-text); border-color: var(--btn-bg); }
+  .dstrip button.today:not([aria-pressed="true"]) { border-color: var(--accent); color: var(--accent); }
+  .wk.day { grid-template-columns: 46px minmax(0, 1fr); min-width: 0; }
+  .wk.day .bk { font-size: 13px; padding: 4px 8px; }
+  .wk-scroll { border-radius: 12px; }
+  .legend { font-size: 11.5px; gap: 6px 10px; }
+  /* detail termínu jako panel zespodu */
+  .side.sheet { position: fixed; left: 0; right: 0; bottom: 0; top: auto; z-index: 40; max-height: 88vh; overflow-y: auto; overscroll-behavior: contain;
+    background: var(--bg); border-radius: 20px 20px 0 0; padding: 0 12px calc(16px + env(safe-area-inset-bottom, 0px)); box-shadow: 0 -10px 30px rgba(0,0,0,.25); }
+  .side.sheet .card { border: 0; padding: 4px 6px 12px; background: transparent; animation: none; }
+  .side.sheet .sheet-bar { display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; background: var(--bg); padding: 10px 6px 6px; z-index: 1; }
+  .sheet-bar::before { content: ""; position: absolute; left: 50%; top: 5px; width: 40px; height: 4px; margin-left: -20px; border-radius: 4px; background: var(--line); }
+  .backdrop { display: block; position: fixed; inset: 0; background: rgba(30, 20, 15, .45); z-index: 39; }
+  .side.sheet .upc { display: none; }
+  /* tabulky jako karty */
+  .rt thead { display: none; }
+  .rt, .rt tbody { display: block; }
+  .rt tr { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .rt td { border: 0; padding: 0; text-align: left !important; }
+  .rt td[data-l]::before { content: attr(data-l) ": "; color: var(--muted); font-size: 12px; }
+  .rt td.main { font-weight: 600; font-size: 15px; }
+  .rt td.full { grid-column: 1 / -1; }
+  .rt td:empty { display: none; }
+  .sum { grid-template-columns: 1fr 1fr; } .sum b { font-size: 16px; }
+  .slots { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .slots button { padding: 10px 0; }
+  .btn { padding: 11px 18px; }
+}
 @media (prefers-reduced-motion: no-preference) { .pac > .card, .side .card { animation: up .25s ease-out; } @keyframes up { from { transform: translateY(6px); } to { transform: none; } } }
 </style>
 
@@ -446,6 +505,7 @@ td input.short { width: 80px; }
     document.getElementById('v-pac').setAttribute('aria-pressed', ui.view === 'pac');
     document.getElementById('v-adm').setAttribute('aria-pressed', ui.view === 'adm');
     app.innerHTML = ui.view === 'pac' ? renderPac() : renderAdm();
+    document.body.style.overflow = app.querySelector('.side.sheet') ? 'hidden' : '';
   }
 
   /* ===== Pacient ===== */
@@ -572,7 +632,9 @@ td input.short { width: 80px; }
   var GS = 420, GE = 1080, PX = 1;
   function viewStaff() { return isAdmin() ? ui.filter : me().id; }
   function admCal() {
-    var mon = parse(ui.week), days = [0, 1, 2, 3, 4].map(function (i) { return iso(addDays(mon, i)); }), vf = viewStaff();
+    var mon = parse(ui.week), week = [0, 1, 2, 3, 4].map(function (i) { return iso(addDays(mon, i)); }), vf = viewStaff(), mob = isMobile();
+    if (week.indexOf(ui.day) < 0) ui.day = week.indexOf(iso(today())) > -1 ? iso(today()) : week[0];
+    var days = mob ? [ui.day] : week;
     var cnt = 0, mins = 0, open = 0;
     days.forEach(function (d) {
       S.bookings.forEach(function (b) { if (b.date === d && b.status === 'ok' && (!vf || b.staff === vf)) { cnt++; mins += b.dur; } });
@@ -581,13 +643,15 @@ td input.short { width: 80px; }
         S.blocks.forEach(function (k) { if (k.date === d && (!k.staff || !vf || k.staff === vf)) open -= Math.max(0, Math.min(k.end, h[1]) - Math.max(k.start, h[0])); });
       });
     });
+    var sheet = mob && (ui.mode === 'new' || !!ui.sel);
     var o = '<div class="adm-grid"><div style="min-width:0"><div class="wk-bar"><div class="row"><button type="button" class="btn ghost sm" data-wk="-7" aria-label="Předchozí týden">‹</button>'
       + '<h3>' + mon.getDate() + '. ' + (mon.getMonth() + 1) + '. – ' + addDays(mon, 4).getDate() + '. ' + (addDays(mon, 4).getMonth() + 1) + '. ' + addDays(mon, 4).getFullYear() + '</h3>'
       + '<button type="button" class="btn ghost sm" data-wk="7" aria-label="Další týden">›</button><button type="button" class="btn ghost sm" data-wk="0">Dnes</button></div>'
       + '<button type="button" class="btn sm" data-newb>+ Nový termín</button></div>'
-      + (isAdmin() && S.staff.length > 1 ? '<div class="chips" role="group" aria-label="Zobrazit" style="margin-bottom:10px">' + [['', 'Všechny hygienistky']].concat(S.staff.map(function (x) { return [x.id, x.name]; })).map(function (c) { return '<button type="button" class="chip" data-filter="' + c[0] + '" aria-pressed="' + (ui.filter === c[0]) + '">' + esc(c[1]) + '</button>'; }).join('') + '</div>' : '')
-      + '<p class="stats" style="margin:0 0 10px">' + cnt + ' termínů · obsazeno ' + Math.round(mins / 6) / 10 + ' h z ' + Math.round(Math.max(open, 0) / 6) / 10 + ' h</p>'
-      + '<div class="wk-scroll"><div class="wk"><div class="corner"></div>';
+      + (isAdmin() && S.staff.length > 1 ? '<div class="chips scroll" role="group" aria-label="Zobrazit" style="margin-bottom:10px">' + [['', 'Všechny hygienistky']].concat(S.staff.map(function (x) { return [x.id, x.name]; })).map(function (c) { return '<button type="button" class="chip" data-filter="' + c[0] + '" aria-pressed="' + (ui.filter === c[0]) + '">' + esc(c[1]) + '</button>'; }).join('') + '</div>' : '')
+      + (mob ? '<div class="dstrip" role="group" aria-label="Den">' + week.map(function (d) { var x = parse(d); return '<button type="button" data-day="' + d + '" aria-pressed="' + (d === ui.day) + '"' + (d === iso(today()) ? ' class="today"' : '') + '>' + DAYS_SHORT[x.getDay()] + '<b>' + x.getDate() + '.</b></button>'; }).join('') + '</div>' : '')
+      + '<p class="stats" style="margin:0 0 10px">' + (mob ? esc(longDateCs(ui.day)) + ': ' : '') + cnt + ' termínů · obsazeno ' + Math.round(mins / 6) / 10 + ' h z ' + Math.round(Math.max(open, 0) / 6) / 10 + ' h</p>'
+      + '<div class="wk-scroll"><div class="wk' + (mob ? ' day' : '') + '"><div class="corner"></div>';
     var td = iso(today());
     days.forEach(function (d) { var x = parse(d); o += '<div class="hd' + (d === td ? ' today' : '') + '">' + DAYS_SHORT[x.getDay()] + ' ' + x.getDate() + '. ' + (x.getMonth() + 1) + '.<small>' + (openIntervals(d, vf).map(function (h) { return hm(h[0]) + '–' + hm(h[1]); }).join(', ') || 'zavřeno') + '</small></div>'; });
     var H = (GE - GS) * PX;
@@ -625,7 +689,7 @@ td input.short { width: 80px; }
       o += '</div>';
     });
     o += '</div></div><div class="legend">' + S.services.map(function (x) { return '<span><i style="background:' + col(x) + '"></i>' + esc(x.name) + '</span>'; }).join('') + '<span><i style="background:repeating-linear-gradient(135deg,var(--bad-bg) 0 3px,var(--paper) 3px 6px);border:1px solid var(--bad)"></i>Nedostavil se</span><span><b style="font-size:10px">WEB</b> = objednal se sám přes web</span>' + (!vf && S.staff.length > 1 ? S.staff.map(function (x) { return '<span><b style="font-size:10px">' + esc(x.short) + '</b> = ' + esc(x.name) + '</span>'; }).join('') : '') + (vf ? '<span>Šrafované „Obsazeno“ = termín jiné hygienistky</span>' : '') + '</div>'
-      + '<p class="muted small">Kliknutím do volného místa přidáte termín. Kliknutím na termín zobrazíte detail, kde ho můžete přesunout. Na počítači termín také přetáhnete myší.</p></div><aside class="side">' + admSide() + '</aside></div>';
+      + '<p class="muted small">Kliknutím do volného místa přidáte termín. Kliknutím na termín zobrazíte detail, kde ho můžete přesunout. Na počítači termín také přetáhnete myší.</p></div><aside class="side' + (sheet ? ' sheet' : '') + '">' + (sheet ? '<div class="sheet-bar"><b class="ui">' + (ui.mode === 'new' ? 'Nový termín' : 'Detail termínu') + '</b><button type="button" class="btn sm ghost" data-close>Zavřít</button></div>' : '') + admSide() + '</aside>' + (sheet ? '<div class="backdrop" data-close aria-hidden="true"></div>' : '') + '</div>';
     return o;
   }
   function admSide() {
@@ -681,7 +745,7 @@ td input.short { width: 80px; }
   }
   function upcoming() {
     var td = iso(today()), vf = viewStaff(), list = S.bookings.filter(function (b) { return b.date >= td && b.status === 'ok' && (!vf || b.staff === vf); }).sort(function (a, b) { return (a.date + hm(a.start).padStart(5, '0')).localeCompare(b.date + hm(b.start).padStart(5, '0')); }).slice(0, 5);
-    return '<div class="card"><h3>Nejbližší termíny</h3>' + (list.length ? '<table><tbody>' + list.map(function (b) {
+    return '<div class="card upc"><h3>Nejbližší termíny</h3>' + (list.length ? '<table><tbody>' + list.map(function (b) {
       var d = parse(b.date); return '<tr><td class="num">' + DAYS_SHORT[d.getDay()] + ' ' + d.getDate() + '. ' + (d.getMonth() + 1) + '. ' + hm(b.start) + '</td><td><span class="dot" style="background:' + col(svc(b.svc)) + '"></span>' + esc(b.name) + '</td></tr>';
     }).join('') + '</tbody></table>' : '<p class="muted small">Žádné.</p>') + '</div>';
   }
@@ -702,8 +766,8 @@ td input.short { width: 80px; }
   }
   function admBlocks() {
     var td = iso(today()), mine = me().id, list = S.blocks.filter(function (k) { return k.date >= td && (isAdmin() || !k.staff || k.staff === mine); }).sort(function (a, b) { return a.date.localeCompare(b.date) || a.start - b.start; });
-    return '<div class="adm-grid"><div class="card"><h2>Blokace</h2><p class="muted">Dovolená, školení, oběd. Na zablokovaný čas se nikdo neobjedná přes web.</p><div class="tbl-wrap"><table><thead><tr><th>Den</th><th>Čas</th><th>Pro koho</th><th>Důvod</th><th></th></tr></thead><tbody>'
-      + (list.length ? list.map(function (k) { return '<tr><td>' + esc(longDateCs(k.date)) + '</td><td class="num">' + (k.start === 0 && k.end === 1440 ? 'celý den' : hm(k.start) + '–' + hm(k.end)) + '</td><td>' + (k.staff ? esc(staffName(k.staff)) : 'celá ordinace') + '</td><td>' + esc(k.reason) + '</td><td>' + (isAdmin() || k.staff === mine ? '<button type="button" class="btn sm ghost" data-delblk="' + k.id + '">Smazat</button>' : '') + '</td></tr>'; }).join('') : '<tr><td colspan="5" class="muted">Žádné blokace.</td></tr>')
+    return '<div class="adm-grid"><div class="card"><h2>Blokace</h2><p class="muted">Dovolená, školení, oběd. Na zablokovaný čas se nikdo neobjedná přes web.</p><div class="tbl-wrap"><table class="rt"><thead><tr><th>Den</th><th>Čas</th><th>Pro koho</th><th>Důvod</th><th></th></tr></thead><tbody>'
+      + (list.length ? list.map(function (k) { return '<tr><td class="main">' + esc(longDateCs(k.date)) + '</td><td class="num">' + (k.start === 0 && k.end === 1440 ? 'celý den' : hm(k.start) + '–' + hm(k.end)) + '</td><td>' + (k.staff ? esc(staffName(k.staff)) : 'celá ordinace') + '</td><td>' + esc(k.reason) + '</td><td>' + (isAdmin() || k.staff === mine ? '<button type="button" class="btn sm ghost" data-delblk="' + k.id + '">Smazat</button>' : '') + '</td></tr>'; }).join('') : '<tr><td colspan="5" class="muted">Žádné blokace.</td></tr>')
       + '</tbody></table></div></div><aside class="side"><div class="card"><h3>Přidat blokaci</h3><form class="form" id="bf" novalidate>'
       + '<div class="two"><label for="b-from">Od dne<input id="b-from" type="date" name="from" value="' + iso(addDays(today(), 7)) + '"></label><label for="b-to">Do dne<input id="b-to" type="date" name="to" value="' + iso(addDays(today(), 7)) + '"></label></div>'
       + '<label class="check" for="b-all"><input type="checkbox" id="b-all" name="all" checked><span>Celý den</span></label>'
@@ -725,9 +789,9 @@ td input.short { width: 80px; }
     var q = ui.q.toLowerCase(), list = Object.keys(map).map(function (k) { return map[k]; }).filter(function (p) { return !q || (p.name + p.phone + p.email).toLowerCase().indexOf(q) > -1; }).sort(function (a, b) { return a.name.localeCompare(b.name, 'cs'); });
     function d(s) { if (!s) return '–'; var x = parse(s); return x.getDate() + '. ' + (x.getMonth() + 1) + '. ' + x.getFullYear(); }
     return '<div class="card"><div class="row" style="justify-content:space-between"><h2>Pacienti</h2><input id="q" class="ui" placeholder="Hledat jméno, telefon, e-mail" value="' + esc(ui.q) + '" style="padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);min-width:0;width:260px;max-width:100%"></div>'
-      + (isAdmin() && S.staff.length > 1 ? '<div class="chips" role="group" aria-label="Zobrazit" style="margin-top:10px">' + [['', 'Všechny hygienistky']].concat(S.staff.map(function (x) { return [x.id, x.name]; })).map(function (c) { return '<button type="button" class="chip" data-filter="' + c[0] + '" aria-pressed="' + (ui.filter === c[0]) + '">' + esc(c[1]) + '</button>'; }).join('') + '</div>' : '')
-      + '<p class="muted small">' + (isAdmin() ? (vf ? 'Pacienti hygienistky ' + esc(staffName(vf)) + '. ' : 'Pacienti celé ordinace. ') : 'Vidíte jen své pacienty. ') + 'Seznam vzniká sám z rezervací. Pacienta systém pozná podle telefonu. Sem později přibude kartotéka.</p><div class="tbl-wrap"><table><thead><tr><th>Jméno</th><th>Telefon</th><th>E-mail</th><th>Návštěv</th><th>Poslední</th><th>Příští</th>' + (!vf && S.staff.length > 1 ? '<th>Hygienistka</th>' : '') + '<th></th></tr></thead><tbody>'
-      + list.map(function (p) { return '<tr><td>' + esc(p.name) + '</td><td class="num" style="white-space:nowrap">' + esc(p.phone) + '</td><td>' + esc(p.email || '–') + '</td><td class="num">' + p.visits + '</td><td class="num">' + d(p.last) + '</td><td class="num">' + d(p.next) + '</td>' + (!vf && S.staff.length > 1 ? '<td>' + esc((staff(p.staff) || {}).short || '') + '</td>' : '') + '<td>' + (p.noshow ? '<span class="pill bad">' + p.noshow + '× nepřišel</span>' : '') + '</td></tr>'; }).join('')
+      + (isAdmin() && S.staff.length > 1 ? '<div class="chips scroll" role="group" aria-label="Zobrazit" style="margin-top:10px">' + [['', 'Všechny hygienistky']].concat(S.staff.map(function (x) { return [x.id, x.name]; })).map(function (c) { return '<button type="button" class="chip" data-filter="' + c[0] + '" aria-pressed="' + (ui.filter === c[0]) + '">' + esc(c[1]) + '</button>'; }).join('') + '</div>' : '')
+      + '<p class="muted small">' + (isAdmin() ? (vf ? 'Pacienti hygienistky ' + esc(staffName(vf)) + '. ' : 'Pacienti celé ordinace. ') : 'Vidíte jen své pacienty. ') + 'Seznam vzniká sám z rezervací. Pacienta systém pozná podle telefonu. Sem později přibude kartotéka.</p><div class="tbl-wrap"><table class="rt"><thead><tr><th>Jméno</th><th>Telefon</th><th>E-mail</th><th>Návštěv</th><th>Poslední</th><th>Příští</th>' + (!vf && S.staff.length > 1 ? '<th>Hygienistka</th>' : '') + '<th></th></tr></thead><tbody>'
+      + list.map(function (p) { return '<tr><td class="main">' + esc(p.name) + '</td>' + (!vf && S.staff.length > 1 ? '' : '') + '<td class="num" style="white-space:nowrap">' + esc(p.phone) + '</td><td class="full" style="word-break:break-all">' + esc(p.email || '–') + '</td><td class="num" data-l="Návštěv">' + p.visits + '</td><td class="num" data-l="Poslední">' + d(p.last) + '</td><td class="num" data-l="Příští">' + d(p.next) + '</td>' + (!vf && S.staff.length > 1 ? '<td data-l="Hygienistka">' + esc((staff(p.staff) || {}).short || '') + '</td>' : '') + '<td>' + (p.noshow ? '<span class="pill bad">' + p.noshow + '× nepřišel</span>' : '') + '</td></tr>'; }).join('')
       + '</tbody></table></div></div>';
   }
   /* ----- Směny ----- */
@@ -757,13 +821,13 @@ td input.short { width: 80px; }
       }).join('') + '</tr>';
     }
     o += '</tbody></table></div></div>';
-    o += '<div class="card"><h2>Pravidelný týdenní rozpis</h2><p class="muted small">' + (isAdmin() ? 'Upravit můžete rozpis všech hygienistek.' : 'Upravit můžete svůj sloupec. Rozpis kolegyně vidíte, abyste se nepřekrývaly.') + '</p><div class="tbl-wrap" style="margin-top:8px"><table><thead><tr><th>Den</th>' + S.staff.map(function (x) { return '<th colspan="3">' + esc(x.name) + '</th>'; }).join('') + '</tr></thead><tbody>'
-      + dn.map(function (d) { return '<tr><td style="text-transform:capitalize">' + DAYS[d] + '</td>' + S.staff.map(function (x) { var h = x.hours[d], k = x.id + ':' + d, dis = canEdit(x.id) ? '' : ' disabled';
-          return '<td><input type="checkbox" data-hopen="' + k + '"' + (h ? ' checked' : '') + dis + ' aria-label="Ordinuje" style="width:auto"></td><td><input type="time" step="900" data-hs="' + k + '" value="' + (h ? hm(h[0]).padStart(5, '0') : '') + '"' + (h && !dis ? '' : ' disabled') + ' aria-label="Od" style="min-width:96px"></td><td><input type="time" step="900" data-he="' + k + '" value="' + (h ? hm(h[1]).padStart(5, '0') : '') + '"' + (h && !dis ? '' : ' disabled') + ' aria-label="Do" style="min-width:96px"></td>'; }).join('') + '</tr>'; }).join('')
-      + '</tbody></table></div></div>';
+    o += '<div class="card"><h2>Pravidelný týdenní rozpis</h2><p class="muted small">' + (isAdmin() ? 'Upravit můžete rozpis všech hygienistek.' : 'Upravit můžete svůj sloupec. Rozpis kolegyně vidíte, abyste se nepřekrývaly.') + '</p><div class="wtables">' + S.staff.map(function (x) { var dis = canEdit(x.id) ? '' : ' disabled';
+        return '<div><h3>' + esc(x.name) + '</h3><table><thead><tr><th>Den</th><th></th><th>Od</th><th>Do</th></tr></thead><tbody>' + dn.map(function (d) { var h = x.hours[d], k = x.id + ':' + d;
+          return '<tr><td style="text-transform:capitalize">' + DAYS_SHORT[d] + '</td><td><input type="checkbox" data-hopen="' + k + '"' + (h ? ' checked' : '') + dis + ' aria-label="' + DAYS[d] + ' ordinuje" style="width:auto"></td><td><input type="time" step="900" data-hs="' + k + '" value="' + (h ? hm(h[0]).padStart(5, '0') : '') + '"' + (h && !dis ? '' : ' disabled') + ' aria-label="Od"></td><td><input type="time" step="900" data-he="' + k + '" value="' + (h ? hm(h[1]).padStart(5, '0') : '') + '"' + (h && !dis ? '' : ' disabled') + ' aria-label="Do"></td></tr>'; }).join('') + '</tbody></table></div>'; }).join('')
+      + '</div></div>';
     var list = S.shifts.filter(function (z) { return z.date >= iso(td) && (isAdmin() || true); }).sort(function (a, b) { return a.date.localeCompare(b.date); });
-    o += '<div class="adm-grid" style="grid-template-columns:minmax(0,1fr) 320px"><div class="card"><h2>Změny v konkrétní den</h2><p class="muted small">Výměna směny, zástup nebo den volna. Má přednost před pravidelným rozpisem.</p><div class="tbl-wrap"><table><thead><tr><th>Den</th><th>Hygienistka</th><th>Směna</th><th>Poznámka</th><th></th></tr></thead><tbody>'
-      + (list.length ? list.map(function (z) { return '<tr><td>' + esc(longDateCs(z.date)) + '</td><td>' + esc(staffName(z.staff)) + '</td><td class="num">' + (z.off ? 'nepracuje' : hm(z.start) + '–' + hm(z.end)) + '</td><td>' + esc(z.note || '') + '</td><td>' + (canEdit(z.staff) ? '<button type="button" class="btn sm ghost" data-delshift="' + z.id + '">Smazat</button>' : '') + '</td></tr>'; }).join('') : '<tr><td colspan="5" class="muted">Žádné změny.</td></tr>')
+    o += '<div class="adm-grid" style="grid-template-columns:minmax(0,1fr) 320px"><div class="card"><h2>Změny v konkrétní den</h2><p class="muted small">Výměna směny, zástup nebo den volna. Má přednost před pravidelným rozpisem.</p><div class="tbl-wrap"><table class="rt"><thead><tr><th>Den</th><th>Hygienistka</th><th>Směna</th><th>Poznámka</th><th></th></tr></thead><tbody>'
+      + (list.length ? list.map(function (z) { return '<tr><td class="main">' + esc(longDateCs(z.date)) + '</td><td>' + esc(staffName(z.staff)) + '</td><td class="num">' + (z.off ? 'nepracuje' : hm(z.start) + '–' + hm(z.end)) + '</td><td>' + esc(z.note || '') + '</td><td>' + (canEdit(z.staff) ? '<button type="button" class="btn sm ghost" data-delshift="' + z.id + '">Smazat</button>' : '') + '</td></tr>'; }).join('') : '<tr><td colspan="5" class="muted">Žádné změny.</td></tr>')
       + '</tbody></table></div></div><aside class="side"><div class="card"><h3>Změnit směnu v jeden den</h3><form class="form" id="shf" novalidate>'
       + '<label for="sh-date">Den<input id="sh-date" type="date" name="date" value="' + iso(addDays(td, 7)) + '"></label>'
       + (isAdmin() ? '<label for="sh-who">Hygienistka<select id="sh-who" name="who">' + S.staff.map(function (x) { return '<option value="' + x.id + '"' + (x.id === mine ? ' selected' : '') + '>' + esc(x.name) + '</option>'; }).join('') + '</select></label>' : '<input type="hidden" name="who" value="' + mine + '">')
@@ -791,8 +855,8 @@ td input.short { width: 80px; }
         + '<div class="sum"><div><small>Tržba za proběhlé návštěvy</small><b>' + money(rev) + '</b></div>'
         + (share ? '<div class="hl"><small>Odvod ordinaci (' + share + ' %)</small><b>' + money(cut) + '</b></div><div><small>Zůstává hygienistce (' + (100 - share) + ' %)</small><b>' + money(rev - cut) + '</b></div>' : '')
         + '<div><small>Ještě naplánováno do konce měsíce</small><b>' + money(plan) + '</b></div></div>'
-        + '<details><summary class="ui" style="cursor:pointer;font-weight:600">Návštěvy v měsíci (' + list.length + ')' + (ns ? ', z toho ' + ns + '× nepřišel' : '') + '</summary><div class="tbl-wrap" style="margin-top:8px"><table><thead><tr><th>Den</th><th>Pacient</th><th>Služba</th><th>Stav</th><th class="r">Cena</th></tr></thead><tbody>'
-        + (list.length ? list.map(function (b) { var dd = parse(b.date); return '<tr><td class="num" style="white-space:nowrap">' + dd.getDate() + '. ' + (dd.getMonth() + 1) + '. ' + hm(b.start) + '</td><td>' + esc(b.name) + '</td><td>' + esc((svc(b.svc) || { name: '' }).name) + '</td><td>' + (b.status === 'noshow' ? '<span class="pill bad">nepřišel</span>' : done(b) ? '<span class="pill good">proběhlo</span>' : '<span class="pill">plánováno</span>') + '</td><td class="num r">' + (b.status === 'noshow' ? '<span class="muted">0 Kč</span>' : money(b.price)) + '</td></tr>'; }).join('') : '<tr><td colspan="5" class="muted">Žádné návštěvy.</td></tr>')
+        + '<details><summary class="ui" style="cursor:pointer;font-weight:600">Návštěvy v měsíci (' + list.length + ')' + (ns ? ', z toho ' + ns + '× nepřišel' : '') + '</summary><div class="tbl-wrap" style="margin-top:8px"><table class="rt"><thead><tr><th>Den</th><th>Pacient</th><th>Služba</th><th>Stav</th><th class="r">Cena</th></tr></thead><tbody>'
+        + (list.length ? list.map(function (b) { var dd = parse(b.date); return '<tr><td class="num main" style="white-space:nowrap">' + dd.getDate() + '. ' + (dd.getMonth() + 1) + '. ' + hm(b.start) + '</td><td class="main">' + esc(b.name) + '</td><td class="full muted">' + esc((svc(b.svc) || { name: '' }).name) + '</td><td>' + (b.status === 'noshow' ? '<span class="pill bad">nepřišel</span>' : done(b) ? '<span class="pill good">proběhlo</span>' : '<span class="pill">plánováno</span>') + '</td><td class="num r">' + (b.status === 'noshow' ? '<span class="muted">0 Kč</span>' : money(b.price)) + '</td></tr>'; }).join('') : '<tr><td colspan="5" class="muted">Žádné návštěvy.</td></tr>')
         + '</tbody></table></div></details></div>';
     });
     o += '<div class="set-grid"><div class="card"><div class="wk-bar" style="margin:0"><div class="row"><button type="button" class="btn ghost sm" data-bm="-1" aria-label="Předchozí měsíc">‹</button><h3 style="text-transform:capitalize">' + m0.toLocaleDateString('cs-CZ', { month: 'long', year: 'numeric' }) + '</h3><button type="button" class="btn ghost sm" data-bm="1" aria-label="Další měsíc">›</button></div></div>'
@@ -830,6 +894,10 @@ td input.short { width: 80px; }
       + '</div><p class="muted small" style="margin:12px 0 0">Oznámení o každé nové rezervaci, přesunu a zrušení chodí na info@adentdh.cz.</p></div></div>';
   }
 
+  function isMobile() { return window.matchMedia ? window.matchMedia('(max-width: 700px)').matches : window.innerWidth <= 700; }
+  var lastMob = isMobile(), rT;
+  window.addEventListener('resize', function () { clearTimeout(rT); rT = setTimeout(function () { if (isMobile() !== lastMob) { lastMob = isMobile(); render(); } }, 150); });
+
   /* ---------- Akce ---------- */
   var toastT;
   function toast(t) { var el = document.getElementById('toast'); el.textContent = t; el.hidden = false; clearTimeout(toastT); toastT = setTimeout(function () { el.hidden = true; }, 2600); }
@@ -845,7 +913,7 @@ td input.short { width: 80px; }
   var suppressClick = false;
   app.addEventListener('click', function (e) {
     if (suppressClick) { suppressClick = false; return; }
-    var t = e.target.closest('button, [data-col]'); if (!t) return;
+    var t = e.target.closest('button, [data-col], [data-close]'); if (!t) return;
     var a = t.dataset;
     // pacient
     if (a.svc) { ui.svc = a.svc; ui.step = 2; ui.date = null; ui.month = null; return render(); }
@@ -866,7 +934,8 @@ td input.short { width: 80px; }
     if (a.filter !== undefined) { ui.filter = a.filter; ui.sel = null; ui.mode = null; return render(); }
     if (a.addstaff !== undefined) { var nid = 'h' + (++S.seq); S.staff.push({ id: nid, name: 'Nová hygienistka', short: 'NH', role: 'staff', login: '', hours: { 1: null, 2: null, 3: null, 4: null, 5: null, 6: null, 0: null } }); save(); toast('Účet přidán, doplňte jméno a ordinační dobu'); return render(); }
     if (a.atab) { ui.admTab = a.atab; ui.err = ''; return render(); }
-    if (a.wk) { ui.week = a.wk === '0' ? iso(monday(today())) : iso(addDays(parse(ui.week), +a.wk)); return render(); }
+    if (a.wk) { ui.week = a.wk === '0' ? iso(monday(today())) : iso(addDays(parse(ui.week), +a.wk)); ui.day = a.wk === '0' ? iso(today()) : null; return render(); }
+    if (a.day) { ui.day = a.day; ui.sel = null; ui.mode = null; return render(); }
     if (a.bk) { if (ui.sel !== +a.bk) ui.mv = null; ui.sel = +a.bk; ui.mode = null; ui.confirm = false; e.stopPropagation(); return render(); }
     if (a.mvreset !== undefined) { ui.mv = null; return render(); }
     if (a.close !== undefined) { ui.sel = null; ui.mode = null; ui.err = ''; return render(); }
