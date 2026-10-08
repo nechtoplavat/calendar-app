@@ -306,10 +306,31 @@ td input.short { width: 80px; }
   }
   function discounted(price, pct) { return Math.round(price * (100 - pct) / 100); }
   function priceHtml(price, pct) { return pct ? '<span class="old">' + money(price) + '</span> <b>' + money(discounted(price, pct)) + '</b> <span class="lm">−' + pct + ' %</span>' : money(price); }
+  /* ---------- Oslovení (5. pád křestního jména) ---------- */
+  var VOC_EXC = {
+    karel: 'Karle', pavel: 'Pavle', havel: 'Havle', lev: 'Lve', petr: 'Petře', michal: 'Michale', kamil: 'Kamile',
+    daniel: 'Danieli', samuel: 'Samueli', gabriel: 'Gabrieli', rafael: 'Rafaeli', emanuel: 'Emanueli', marcel: 'Marceli', noel: 'Noeli',
+    ester: 'Ester', dagmar: 'Dagmar', miriam: 'Miriam', ingrid: 'Ingrid', karin: 'Karin', carmen: 'Carmen', nikol: 'Nikol', rút: 'Rút', ruth: 'Ruth', kim: 'Kim', sharon: 'Sharon'
+  };
+  function vocative(full) {
+    var w = String(full || '').trim().split(/\s+/)[0] || '', low = w.toLowerCase();
+    if (!w) return w;
+    if (VOC_EXC[low]) return VOC_EXC[low];
+    if (/a$/.test(low)) return w.slice(0, -1) + 'o';                       // Jana → Jano, Honza → Honzo
+    if (/[eéěiíoóuúůyý]$/.test(low)) return w;                             // Marie, Jiří, Hugo beze změny
+    if (/něk$/.test(low)) return w.slice(0, -3) + 'ňku';                    // Zdeněk → Zdeňku
+    if (/děk$/.test(low)) return w.slice(0, -3) + 'ďku';
+    if (/ek$/.test(low)) return w.slice(0, -2) + 'ku';                      // Marek → Marku, Vašek → Vašku
+    if (/(k|h|g|ch)$/.test(low)) return w + 'u';                           // Dominik → Dominiku, Vojtěch → Vojtěchu
+    if (/[šžčřcjďťňx]$/.test(low)) return w + 'i';                         // Tomáš → Tomáši, Ondřej → Ondřeji
+    if (/[^aeiouyáéíóúůý]r$/.test(low)) return w.slice(0, -1) + 'ře';       // Alexandr → Alexandře
+    return w + 'e';                                                         // Adam → Adame, Jan → Jane, Viktor → Viktore
+  }
+  function greet(b) { return b.vok || vocative(b.name); }
   function fill(tpl, b) {
     var s = svc(b.svc) || { name: '' };
     return String(tpl || '').replace(/\{(\w+)\}/g, function (m, k) {
-      var v = { jmeno: b.name.split(' ')[0], celejmeno: b.name, datum: longDateCs(b.date), cas: hm(b.start), sluzba: s.name, cena: money(b.price) }[k];
+      var v = { jmeno: greet(b), celejmeno: b.name, datum: longDateCs(b.date), cas: hm(b.start), sluzba: s.name, cena: money(b.price) }[k];
       return v != null ? v : m;
     });
   }
@@ -536,7 +557,10 @@ td input.short { width: 80px; }
   function notesSection(b) {
     var prev = S.bookings.filter(function (x) { return x.phone === b.phone && x.id !== b.id && x.inote && x.status !== 'cancelled'; }).sort(function (a, c) { return c.date.localeCompare(a.date); });
     function d(s) { var x = parse(s); return x.getDate() + '. ' + (x.getMonth() + 1) + '. ' + x.getFullYear(); }
-    return '<div class="sec"><h4>Poznámky</h4>'
+    return '<div class="sec"><h4>Oslovení v e-mailu a SMS</h4><form class="form" id="vf" novalidate><div class="row" style="flex-wrap:nowrap">'
+      + '<input id="v-vok" name="vok" aria-label="Oslovení" value="' + esc(greet(b)) + '" style="flex:1;min-width:0"><button class="btn sm ghost" type="submit">Uložit</button></div>'
+      + '<span class="hint" style="font-family:var(--f-ui);font-size:12.5px;color:var(--muted)">„Dobrý den, ' + esc(greet(b)) + '“. ' + (b.vok ? 'Upraveno ručně.' : 'Vytvořeno automaticky, opravíte ho, pokud nesedí.') + '</span></form></div>'
+      + '<div class="sec"><h4>Poznámky</h4>'
       + (b.note ? '<div class="notebox"><small>Od pacienta (z rezervace)</small>' + esc(b.note) + '</div>' : '')
       + '<form class="form" id="inf" novalidate><label for="i-note">Interní poznámka <span class="hint">pacient ji neuvidí. Zdravotní údaje sem zatím nepište.</span><textarea id="i-note" name="inote" rows="3">' + esc(b.inote) + '</textarea></label>'
       + '<div><button class="btn sm ghost" type="submit">Uložit poznámku</button></div></form>'
@@ -606,7 +630,8 @@ td input.short { width: 80px; }
       + '<label class="check" for="lm-on"><input type="checkbox" id="lm-on"' + (S.lm.on ? ' checked' : '') + '><span>Zapnout last minute slevu</span></label><div class="two">'
       + '<label for="lm-pct">Výše slevy<select id="lm-pct">' + [5, 10, 15, 20].map(function (v) { return '<option value="' + v + '"' + (v === S.lm.pct ? ' selected' : '') + '>' + v + ' %</option>'; }).join('') + '</select></label>'
       + '<label for="lm-h">Platí pro termíny, které začínají do<select id="lm-h">' + [24, 48, 72].map(function (v) { return '<option value="' + v + '"' + (v === S.lm.hours ? ' selected' : '') + '>' + v + ' hodin od objednání</option>'; }).join('') + '</select></label></div></div></div>'
-      + '<div class="card"><h2>Zprávy pacientům</h2><p class="ph">Do textu můžete vložit: <code>{jmeno}</code> <code>{celejmeno}</code> <code>{datum}</code> <code>{cas}</code> <code>{sluzba}</code> <code>{cena}</code>. Systém je nahradí údaji pacienta.</p><div class="form" style="margin-top:10px">'
+      + '<div class="card"><h2>Zprávy pacientům</h2><p class="ph">Do textu můžete vložit: <code>{jmeno}</code> (oslovení v 5. pádě, např. Jano, Petře) <code>{celejmeno}</code> <code>{datum}</code> <code>{cas}</code> <code>{sluzba}</code> <code>{cena}</code>. Systém je nahradí údaji pacienta.</p><div class="form" style="margin-top:10px">'
+      + '<div class="two" style="align-items:end"><label for="voc-test">Vyzkoušet oslovení<input id="voc-test" placeholder="Napište jméno, např. Zdeněk" value="Zdeněk"></label><p class="ph" style="margin:0 0 10px">Dobrý den, <b id="voc-out">' + esc(vocative('Zdeněk')) + '</b>,</p></div>'
       + '<label for="msg-intro">Úvod potvrzovacího e-mailu<textarea id="msg-intro" data-msg="intro" rows="3">' + esc(S.msg.intro) + '</textarea></label>'
       + '<label class="check" for="msg-sms-on"><input type="checkbox" id="msg-sms-on"' + (S.msg.smsOn ? ' checked' : '') + '><span>Posílat po rezervaci i SMS</span></label>'
       + (S.msg.smsOn ? '<div class="row"><span class="ph">Předloha:</span><button type="button" class="btn sm ghost" data-smspreset="rich">Přehledná s emoji</button><button type="button" class="btn sm ghost" data-smspreset="short">Úsporná (1 SMS)</button></div>'
@@ -705,6 +730,12 @@ td input.short { width: 80px; }
       ui.mv = null; ui.week = iso(monday(parse(mb.date))); save(); render();
       return toast('Termín přesunut' + (fd.notify && mb.email ? ', pacientovi odešel e-mail' + (S.msg.smsOn ? ' a SMS' : '') : ''));
     }
+    if (f.id === 'vf') {
+      var vb = S.bookings.filter(function (x) { return x.id === ui.sel; })[0]; if (!vb) return;
+      var vv = fd.vok === vocative(vb.name) ? '' : fd.vok;
+      S.bookings.forEach(function (x) { if (x.phone === vb.phone) x.vok = vv; });   // platí pro pacienta, ne jen pro jeden termín
+      save(); render(); return toast('Oslovení uloženo pro všechny termíny pacienta');
+    }
     if (f.id === 'inf') {
       var ib = S.bookings.filter(function (x) { return x.id === ui.sel; })[0]; if (!ib) return;
       ib.inote = fd.inote; save(); return toast('Poznámka uložena');
@@ -755,6 +786,7 @@ td input.short { width: 80px; }
       var v = e.target.value, out = document.getElementById('sms-count'), pv = document.getElementById('sms-prev');
       if (out) out.textContent = smsCountText(smsParts(v)); if (pv) pv.textContent = smsText(v, SAMPLE); return;
     }
+    if (e.target.id === 'voc-test') { document.getElementById('voc-out').textContent = vocative(e.target.value) || '…'; return; }
     if (e.target.id === 'q') { ui.q = e.target.value; var pos = e.target.selectionStart; render(); var q = document.getElementById('q'); q.focus(); try { q.setSelectionRange(pos, pos); } catch (x) {} }
   });
 
