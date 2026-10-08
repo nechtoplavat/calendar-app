@@ -11,7 +11,7 @@
   --btn-bg: #332622; --btn-text: #FBF8F3;
   --good: #2f7a4f; --good-bg: #E7F3EB; --bad: #B23A2A; --bad-bg: #FBE7E3;
   --closed: #F4EEE7; --block: #EAE3DB;
-  --st1: #8A6A50; --st2: #4F8A72;
+  --st1: #B4653A; --st2: #3F8A6E;
   --c1: #FDD9C4; --c2: #D7EBD6; --c3: #D6E5F3; --c4: #E6DCF2; --c5: #F4E6BC; --c6: #F7D5DB; --c7: #CFEDE7; --c8: #EAE3DB;
   --f-d: "Lora", Georgia, serif; --f-t: "Crimson Pro", Georgia, serif;
   --f-ui: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
@@ -24,7 +24,7 @@
   --btn-bg: #F6F1EB; --btn-text: #2B201D;
   --good: #8fd1a8; --good-bg: #223629; --bad: #F2A193; --bad-bg: #4A2722;
   --closed: #2A211D; --block: #3D312C;
-  --st1: #D3A985; --st2: #7FC2A5;
+  --st1: #E9A27A; --st2: #7FC2A5;
   --c1: #6E4A38; --c2: #34503A; --c3: #2F4A60; --c4: #4A3C5E; --c5: #5A4C2A; --c6: #5E3540; --c7: #2C524C; --c8: #4A3E37;
   --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 4px 16px rgba(0, 0, 0, .25);
   color-scheme: dark; } }
@@ -34,7 +34,7 @@
   --btn-bg: #F6F1EB; --btn-text: #2B201D;
   --good: #8fd1a8; --good-bg: #223629; --bad: #F2A193; --bad-bg: #4A2722;
   --closed: #2A211D; --block: #3D312C;
-  --st1: #D3A985; --st2: #7FC2A5;
+  --st1: #E9A27A; --st2: #7FC2A5;
   --c1: #6E4A38; --c2: #34503A; --c3: #2F4A60; --c4: #4A3C5E; --c5: #5A4C2A; --c6: #5E3540; --c7: #2C524C; --c8: #4A3E37;
   --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 4px 16px rgba(0, 0, 0, .25);
   color-scheme: dark; }
@@ -193,19 +193,26 @@ td input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--accent)
 .cg-day .dd { font-size: 20px; font-weight: 600; width: 36px; height: 36px; display: grid; place-items: center; border-radius: 50%; font-variant-numeric: tabular-nums; }
 .cg-day.today .dd { background: var(--btn-bg); color: var(--btn-text); }
 .cg-day.today .dw { color: var(--text); }
-.cg-day .sh { display: flex; gap: 4px 8px; flex-wrap: wrap; justify-content: center; font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.cg-day .sh { display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; margin-top: 2px; }
 .cg-day .sh span { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
-.cg-day .sh .dot { width: 7px; height: 7px; }
+.cg-day .sh .shp { padding: 2px 8px 2px 3px; border-radius: 999px; background: color-mix(in srgb, var(--sc) 16%, var(--paper)); color: var(--text); font-weight: 600; }
+.cg-day .sh .shp b { width: 18px; height: 18px; border-radius: 50%; background: var(--sc); color: var(--paper); font-size: 9.5px; display: inline-grid; place-items: center; }
 .cg-times { position: relative; }
 .cg-times span { position: absolute; right: 8px; font-size: 11.5px; color: var(--muted); transform: translateY(-50%); font-variant-numeric: tabular-nums; }
 .cg-col { position: relative; border-left: 1px solid var(--line-2); cursor: pointer; }
 .cg-col .hl { position: absolute; left: 0; right: 0; height: 0; border-top: 1px solid var(--line-2); }
 .cg-col .hl.half { border-top-style: dashed; opacity: .7; }
 .cg-closed { position: absolute; left: 0; right: 0; background: var(--closed); cursor: default; }
-.cg-strip { position: absolute; left: 0; width: 3px; pointer-events: none; border-radius: 0 2px 2px 0; }
-.cg-block { position: absolute; left: 6px; right: 5px; border: 0; border-radius: 8px; background: repeating-linear-gradient(135deg, var(--block) 0 8px, var(--closed) 8px 16px); font-size: 12px; color: var(--muted); padding: 4px 8px; overflow: hidden; cursor: default; font-weight: 650; text-align: left; display: block; }
+/* Směna v ploše dne: jemné podbarvení + pruh s iniciálami a jménem hygienistky */
+.cg-shift { position: absolute; left: 0; right: 0; background: color-mix(in srgb, var(--sc) 6%, transparent); pointer-events: none; }
+.cg-shift + .cg-shift, .cg-shift.next { border-top: 2px dashed color-mix(in srgb, var(--sc) 55%, transparent); }
+.cg-band { position: absolute; left: 0; width: 24px; background: color-mix(in srgb, var(--sc) 20%, var(--paper)); border-right: 2px solid var(--sc); pointer-events: none; overflow: hidden; display: flex; flex-direction: column; align-items: center; gap: 6px; padding-top: 4px; }
+.cg-band .av { width: 19px; height: 19px; border-radius: 50%; background: var(--sc); color: var(--paper); font-size: 9px; font-weight: 700; display: grid; place-items: center; flex: none; }
+.cg-band .nm { writing-mode: vertical-rl; transform: rotate(180deg); font-size: 11px; font-weight: 650; color: var(--text); white-space: nowrap; letter-spacing: .02em; }
+.cal.multi { --evl: 30px; }
+.cg-block { position: absolute; left: var(--evl, 6px); right: 5px; border: 0; border-radius: 8px; background: repeating-linear-gradient(135deg, var(--block) 0 8px, var(--closed) 8px 16px); font-size: 12px; color: var(--muted); padding: 4px 8px; overflow: hidden; cursor: default; font-weight: 650; text-align: left; display: block; }
 .cg-block.sel { box-shadow: 0 0 0 2px var(--text); }
-.cg-ev { position: absolute; left: 6px; right: 5px; border: 0; border-radius: 8px; padding: 4px 8px; text-align: left; overflow: hidden; cursor: pointer; color: var(--text); background: var(--c, var(--c8)); box-shadow: 0 0 0 1.5px var(--paper); display: flex; flex-direction: column; line-height: 1.25; }
+.cg-ev { position: absolute; left: var(--evl, 6px); right: 5px; border: 0; border-radius: 8px; padding: 4px 8px; text-align: left; overflow: hidden; cursor: pointer; color: var(--text); background: var(--c, var(--c8)); box-shadow: 0 0 0 1.5px var(--paper); display: flex; flex-direction: column; line-height: 1.25; }
 .cg-ev .t { font-size: 11.5px; font-weight: 600; font-variant-numeric: tabular-nums; opacity: .72; white-space: nowrap; }
 .cg-ev .n { font-size: 13.5px; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cg-ev .s { font-size: 12px; opacity: .78; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -220,7 +227,7 @@ td input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--accent)
 @media (pointer: fine) { .cg-ev[data-bk] { cursor: grab; } }
 .cg-now { position: absolute; left: 0; right: 0; height: 2px; background: var(--bad); z-index: 4; pointer-events: none; }
 .cg-now::before { content: ""; position: absolute; left: -5px; top: -4px; width: 10px; height: 10px; border-radius: 50%; background: var(--bad); }
-.cg-hov { position: absolute; left: 6px; right: 5px; border: 1.5px dashed var(--accent); border-radius: 8px; font-size: 12px; font-weight: 650; color: var(--accent); padding: 3px 8px; pointer-events: none; z-index: 2; }
+.cg-hov { position: absolute; left: var(--evl, 6px); right: 5px; border: 1.5px dashed var(--accent); border-radius: 8px; font-size: 12px; font-weight: 650; color: var(--accent); padding: 3px 8px; pointer-events: none; z-index: 2; }
 .legend { display: flex; gap: 6px 14px; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); margin-top: 10px; }
 .legend span { display: inline-flex; align-items: center; gap: 6px; }
 .legend i { width: 12px; height: 12px; border-radius: 4px; display: inline-block; }
@@ -389,7 +396,7 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
   .dstrip button.today:not([aria-pressed="true"]) { border-color: var(--text); }
   .dstrip .n { font-size: 10px; }
   .cg-row { grid-template-columns: 46px repeat(var(--cols), minmax(0, 1fr)); }
-  .cg-ev { left: 8px; right: 6px; padding: 5px 10px; }
+  .cg-ev { right: 6px; padding: 5px 10px; }
   .fab { display: grid; place-items: center; position: fixed; right: 16px; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); width: 58px; height: 58px; border-radius: 50%; border: 0; background: var(--btn-bg); color: var(--btn-text); font-size: 28px; line-height: 1; box-shadow: 0 8px 24px rgba(0,0,0,.25); z-index: 30; cursor: pointer; }
   .legend { font-size: 11.5px; }
   .side.sheet { position: fixed; left: 0; right: 0; bottom: 0; top: auto; z-index: 50; max-height: 90vh; overflow-y: auto; overscroll-behavior: contain; background: var(--paper); border-radius: 20px 20px 0 0; padding: 0 16px calc(18px + env(safe-area-inset-bottom, 0px)); box-shadow: 0 -10px 30px rgba(0,0,0,.25); display: block; }
@@ -896,16 +903,16 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
   function calInfo(vf) {
     return info('<p><b>Ovládání</b><br>Klepnutím na termín otevřete detail. Klepnutím do volného místa přidáte termín nebo volno (oběd, dovolená, školení). Na počítači termín přesunete přetažením myší, kalendář posouváte kolečkem.</p>'
       + '<div class="legend">' + S.services.map(function (x) { return '<span><i style="background:' + col(x) + '"></i>' + esc(x.name) + '</span>'; }).join('')
-      + (multi() && !vf ? S.staff.map(function (x) { return '<span><i style="background:' + staffCol(x.id) + ';width:4px;border-radius:2px"></i>směna ' + esc(x.name) + '</span>'; }).join('') : '')
+      + (multi() && !vf ? S.staff.map(function (x) { return '<span><i style="background:' + staffCol(x.id) + ';border-radius:50%"></i>směna ' + esc(x.name) + ' (pruh u okraje dne)</span>'; }).join('') : '')
       + '<span><i style="background:var(--accent);width:8px;height:8px;border-radius:50%"></i>objednáno přes web</span><span><i style="background:repeating-linear-gradient(135deg,var(--block) 0 4px,var(--closed) 4px 8px)"></i>volno / blokace</span></div>', 'Nápověda a barvy');
   }
   function grid(days, vf, dm) {
     var GS = G.GS, GE = G.GE, PX = G.PX, H = (GE - GS) * PX, td = todayIso();
-    var o = '<div class="cal" style="--cols:' + days.length + '"><div class="cg-scroll"><div class="cg-row cg-head"><div></div>';
+    var o = '<div class="cal' + (multi() ? ' multi' : '') + '" style="--cols:' + days.length + '"><div class="cg-scroll"><div class="cg-row cg-head"><div></div>';
     days.forEach(function (d) {
       var x = parse(d), sh = S.staff.filter(function (s) { return (!vf || s.id === vf) && shiftFor(s.id, d) && !dayOff(s.id, d); });
       o += '<button type="button" class="cg-day' + (d === td ? ' today' : '') + (dm ? ' static' : '') + '"' + (dm ? ' tabindex="-1"' : ' data-openday="' + d + '" title="Otevřít den"') + '><span class="dw">' + (dm ? DAYS[x.getDay()] : DS[x.getDay()]) + '</span><span class="dd">' + x.getDate() + '</span>'
-        + '<span class="sh">' + (sh.length ? sh.map(function (s) { var h = shiftFor(s.id, d); return '<span>' + (multi() ? '<i class="dot" style="background:' + staffCol(s.id) + '"></i>' + esc(dm ? s.name : s.short) + ' ' : '') + hh(h[0]) + '–' + hh(h[1]) + '</span>'; }).join('') : '<span>zavřeno</span>') + '</span></button>';
+        + '<span class="sh">' + (sh.length ? sh.sort(function (p1, p2) { return shiftFor(p1.id, d)[0] - shiftFor(p2.id, d)[0]; }).map(function (s) { var h = shiftFor(s.id, d); return multi() ? '<span class="shp" style="--sc:' + staffCol(s.id) + '"><b>' + esc(s.short) + '</b>' + (dm ? esc(s.name) + ' ' : '') + hh(h[0]) + '–' + hh(h[1]) + '</span>' : '<span>' + hh(h[0]) + '–' + hh(h[1]) + '</span>'; }).join('') : '<span>zavřeno</span>') + '</span></button>';
     });
     o += '</div><div class="cg-row cg-body"><div class="cg-times" style="height:' + H + 'px">';
     o += '<span style="top:0;transform:translateY(4px)">' + hm(GS) + '</span>';
@@ -919,7 +926,11 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
         var a = Math.max(h[0], GS); if (a > cur) o += '<div class="cg-closed" style="top:' + (cur - GS) * PX + 'px;height:' + (a - cur) * PX + 'px"></div>';
         cur = Math.max(cur, Math.min(h[1], GE));
       });
-      if (multi()) S.staff.forEach(function (s) { var h = shiftFor(s.id, d); if (h && (!vf || s.id === vf) && !dayOff(s.id, d)) o += '<div class="cg-strip" style="background:' + staffCol(s.id) + ';top:' + (Math.max(h[0], GS) - GS) * PX + 'px;height:' + (Math.min(h[1], GE) - Math.max(h[0], GS)) * PX + 'px"></div>'; });
+      if (multi()) S.staff.filter(function (s) { return shiftFor(s.id, d) && (!vf || s.id === vf) && !dayOff(s.id, d); }).sort(function (p1, p2) { return shiftFor(p1.id, d)[0] - shiftFor(p2.id, d)[0]; }).forEach(function (s, i) {
+        var h = shiftFor(s.id, d), a = Math.max(h[0], GS), z = Math.min(h[1], GE); if (z <= a) return;
+        var pos = 'top:' + (a - GS) * PX + 'px;height:' + (z - a) * PX + 'px;--sc:' + staffCol(s.id);
+        o += '<div class="cg-shift' + (i ? ' next' : '') + '" style="' + pos + '"></div><div class="cg-band" style="' + pos + '" title="Směna: ' + esc(s.name) + ' ' + hm(h[0]) + '–' + hm(h[1]) + '"><span class="av">' + esc(s.short) + '</span>' + ((z - a) * PX > 90 ? '<span class="nm">' + esc(surname(s.id)) + '</span>' : '') + '</div>';
+      });
       S.blocks.forEach(function (k) {
         if (k.date !== d || (k.staff && vf && k.staff !== vf)) return;
         var a = Math.max(k.start, GS), z = Math.min(k.end, GE); if (z <= a) return;
@@ -1353,7 +1364,7 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
     if (a.close !== undefined) { closePanel(); return render(); }
     if (a.newb !== undefined) { var nd = ui.cur < todayIso() ? todayIso() : ui.cur; return openNew(nd, null); }
     if (a.col !== undefined && t.classList.contains('cg-col')) {
-      if (e.target !== t && !e.target.classList.contains('hl') && !e.target.classList.contains('cg-hov') && !e.target.classList.contains('cg-strip')) return;
+      if (e.target !== t && !e.target.classList.contains('hl') && !e.target.classList.contains('cg-hov') && !e.target.classList.contains('cg-shift')) return;
       var r = t.getBoundingClientRect(), mins = G.GS + Math.floor((e.clientY - r.top) / G.PX / 15) * 15;
       var cs = viewStaff() || (S.staff.filter(function (x) { var h = shiftFor(x.id, a.col); return h && mins >= h[0] && mins < h[1]; })[0] || me()).id;
       return openNew(a.col, mins, cs);
@@ -1533,7 +1544,7 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
   var hov = null, drag = null;
   app.addEventListener('mousemove', function (e) {
     if (drag && drag.moving) return;
-    var tg = e.target, c = tg.classList && (tg.classList.contains('cg-col') || tg.classList.contains('hl') || tg.classList.contains('cg-strip')) ? tg.closest('.cg-col') : null;
+    var tg = e.target, c = tg.classList && (tg.classList.contains('cg-col') || tg.classList.contains('hl') || tg.classList.contains('cg-shift')) ? tg.closest('.cg-col') : null;
     if (!c) { if (hov) hov.hidden = true; return; }
     if (!hov || !document.contains(hov)) { hov = document.createElement('div'); hov.className = 'cg-hov'; }
     if (hov.parentNode !== c) c.appendChild(hov);
