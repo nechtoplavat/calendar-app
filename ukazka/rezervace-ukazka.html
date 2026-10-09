@@ -231,6 +231,8 @@ td input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--accent)
 .mini { border: 0; background: var(--peach-soft); border-radius: 999px; font-size: 11px; font-weight: 650; padding: 2px 8px; cursor: pointer; color: var(--text); margin-top: 3px; white-space: nowrap; }
 .cg-quick.shq button { display: flex; align-items: center; gap: 8px; }
 .nprice { font-size: 14px; }
+.addst { background: var(--soft); border-radius: 14px; padding: 16px; margin: 4px 0 16px; display: grid; gap: 12px; }
+.addst h3 { font-size: 17px; }
 .cg-ev { position: absolute; left: var(--evl, 6px); right: 5px; border: 0; border-radius: 8px; padding: 4px 8px; text-align: left; overflow: hidden; cursor: pointer; color: var(--text); background: var(--c, var(--c8)); box-shadow: 0 0 0 1.5px var(--paper); display: flex; flex-direction: column; line-height: 1.25; }
 .cg-ev .t { font-size: 11.5px; font-weight: 600; font-variant-numeric: tabular-nums; opacity: .72; white-space: nowrap; }
 .cg-ev .n { font-size: 13.5px; font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -432,8 +434,8 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
   .pac h2 { font-size: 23px; }
   .adm-top { margin-inline: -16px; padding-inline: 16px; flex-wrap: wrap; gap: 0; }
   .me { order: -1; width: 100%; justify-content: flex-end; padding-bottom: 6px; }
-  .tabs { width: 100%; margin-inline: -4px; }
-  .tab { padding-inline: 10px; }
+  .tabs { width: 100%; margin-inline: 0; gap: 0; }
+  .tab { flex: 1 1 auto; padding-inline: 2px; font-size: clamp(12px, 3.45vw, 13.5px); }
   .steps li { padding: 6px 9px; }
   .steps li:not(.on) .l { display: none; }
   .panel .seg { width: 100%; overflow-x: auto; } .panel .seg button { flex: 1; }
@@ -780,6 +782,8 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
     document.getElementById('v-adm').setAttribute('aria-pressed', ui.view === 'adm');
     app.innerHTML = ui.view === 'pac' ? renderPac() : renderAdm();
     fitCal();
+    var stb = app.querySelector('.tab[aria-selected="true"]');   // vybraná záložka vždy na očích
+    if (stb) { var tb = stb.parentNode; if (stb.offsetLeft + stb.offsetWidth > tb.scrollLeft + tb.clientWidth) tb.scrollLeft = stb.offsetLeft + stb.offsetWidth - tb.clientWidth; }
     var sh = app.querySelector('.side.sheet');
     if (sh && !sheetWasOpen) sh.classList.add('enter');
     sheetWasOpen = !!sh;
@@ -1326,6 +1330,7 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
       o += '<div class="stack" style="gap:8px;margin-top:14px"><button type="button" class="btn ghost block" data-shtotpl>Uložit tento týden jako pravidelný</button>'
         + (cust ? '<button type="button" class="btn ghost block" data-shresetwk>Vrátit týden na pravidelný rozpis (' + cust + ' ' + plural(cust, 'upravený den', 'upravené dny', 'upravených dnů') + ')</button>' : '') + '</div>';
     }
+    o += '<button type="button" class="btn ghost block" data-addstaff style="margin-top:8px">+ Přidat hygienistku do týmu</button>';
     return o + '<p class="hint" style="margin-top:14px">Klepněte do prázdného místa v rozpisu a přidejte směnu. Směny přesouváte a prodlužujete tažením.</p></section>';
   }
   function shDetail(cols) {
@@ -1411,14 +1416,25 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
   /* =============================================================
      ORDINACE – nastavení
      ============================================================= */
+  function addStaffForm() {
+    var f = ui.addStaff; if (!f) return '';
+    return '<form id="sf" class="addst"><h3>Nová hygienistka</h3><div class="two">'
+      + '<label class="field" for="sf-name">Jméno a příjmení<input id="sf-name" name="name" autocomplete="off" value="' + esc(f.name) + '" placeholder="např. Petra Nováková"></label>'
+      + '<label class="field" for="sf-login">E-mail pro přihlášení<input id="sf-login" name="login" type="email" value="' + esc(f.login) + '" placeholder="petra@adentdh.cz"></label>'
+      + '<label class="field" for="sf-share">Odvod ordinaci z tržby<span class="row" style="gap:6px;flex-wrap:nowrap"><input id="sf-share" name="share" type="number" min="0" max="100" step="5" value="' + f.share + '" style="width:90px"> %</span></label>'
+      + '<div class="field"><span>Barva v kalendáři</span><div class="sw" role="group" aria-label="Barva" style="margin-top:8px">' + STAFF_COLORS.map(function (c) { return '<button type="button" data-sfcol="' + c + '" aria-pressed="' + (f.color === c) + '" aria-label="Barva ' + c + '" style="background:var(--' + c + ')"></button>'; }).join('') + '</div></div></div>'
+      + (f.err ? '<p class="err" role="alert">' + esc(f.err) + '</p>' : '')
+      + '<p class="hint">Po přidání jí v záložce <b>Směny</b> přidělte směny – teprve pak se u ní pacienti mohou objednat. Přihlašovací údaje jí v ostré verzi přijdou e-mailem.</p>'
+      + '<div class="row" style="gap:8px"><button class="btn">Přidat hygienistku</button><button type="button" class="btn ghost" data-addstaffx>Zrušit</button></div></form>';
+  }
   function admSettings() {
     return '<div class="page">'
+      + '<section class="panel" id="team"><div class="panel-h"><h2>Tým – hygienistky</h2><span class="row" style="gap:8px;flex-wrap:nowrap">' + (ui.addStaff ? '' : '<button type="button" class="btn sm" data-addstaff>+ Přidat hygienistku</button>') + info('Každá hygienistka má vlastní přihlášení a vidí jen své pacienty. Kdo kdy ordinuje, se nastavuje v záložce Směny. Osobní odkaz otevře rezervaci rovnou u dané hygienistky.') + '</span></div>' + addStaffForm() + '<div class="tbl-wrap"><table><thead><tr><th>Jméno</th><th>Zkratka</th><th>Přihlašovací e-mail</th><th>Role</th><th>Odvod ordinaci</th><th>Barva v kalendáři</th><th>Osobní odkaz na rezervace</th><th></th></tr></thead><tbody>'
+      + S.staff.map(function (x, i) { return '<tr><td><input data-st="' + i + '" data-f="name" value="' + esc(x.name) + '" aria-label="Jméno" style="min-width:160px"></td><td><input data-st="' + i + '" data-f="short" value="' + esc(x.short) + '" maxlength="3" aria-label="Zkratka" style="width:64px"></td><td><input type="email" data-st="' + i + '" data-f="login" value="' + esc(x.login) + '" aria-label="Přihlašovací e-mail" style="min-width:180px"></td><td>' + (x.role === 'admin' ? '<span class="pill good">Správkyně</span>' : '<span class="pill">Hygienistka</span>') + '</td><td class="num">' + (x.role === 'admin' ? '<span class="muted">majitelka</span>' : '<input type="number" min="0" max="100" step="5" data-st="' + i + '" data-f="share" value="' + (x.share == null ? '' : x.share) + '" aria-label="Odvod v procentech" style="width:72px"> %') + '</td><td><div class="sw" role="group" aria-label="Barva">' + STAFF_COLORS.map(function (c) { return '<button type="button" data-stcol="' + i + ':' + c + '" aria-pressed="' + (x.color === c) + '" aria-label="Barva ' + c + '" style="background:var(--' + c + ')"></button>'; }).join('') + '</div></td><td class="hint">adentdh.com/rezervace?k=' + esc(x.id) + '</td><td>' + (x.role === 'admin' ? '' : '<button type="button" class="btn ghost sm" data-delstaff="' + esc(x.id) + '" style="color:var(--bad)">Odebrat</button>') + '</td></tr>'; }).join('')
+      + '</tbody></table></div></section>'
       + '<section class="panel"><div class="panel-h"><h2>Objednávání přes web</h2></div><div class="two">'
       + '<label class="field" for="s-h">Jak dlouho dopředu se lze objednat<select id="s-h">' + [1, 2, 3, 4, 6, 12].map(function (m) { return '<option value="' + m + '"' + (m === S.horizonMonths ? ' selected' : '') + '>' + m + ' ' + plural(m, 'měsíc', 'měsíce', 'měsíců') + '</option>'; }).join('') + '</select></label>'
       + '<label class="field" for="s-st">Začátky termínů po<select id="s-st">' + [10, 15, 30].map(function (m) { return '<option value="' + m + '"' + (m === S.step ? ' selected' : '') + '>' + m + ' minutách</option>'; }).join('') + '</select></label></div></section>'
-      + '<section class="panel"><div class="panel-h"><h2>Hygienistky a přihlášení</h2>' + info('Každá hygienistka má vlastní přihlášení a vidí jen své pacienty. Kdo kdy ordinuje, se nastavuje v záložce Směny. Osobní odkaz otevře rezervaci rovnou u dané hygienistky.') + '</div><div class="tbl-wrap"><table><thead><tr><th>Jméno</th><th>Zkratka</th><th>Přihlašovací e-mail</th><th>Role</th><th>Odvod ordinaci</th><th>Barva v kalendáři</th><th>Osobní odkaz na rezervace</th><th></th></tr></thead><tbody>'
-      + S.staff.map(function (x, i) { return '<tr><td><input data-st="' + i + '" data-f="name" value="' + esc(x.name) + '" aria-label="Jméno" style="min-width:160px"></td><td><input data-st="' + i + '" data-f="short" value="' + esc(x.short) + '" maxlength="3" aria-label="Zkratka" style="width:64px"></td><td><input type="email" data-st="' + i + '" data-f="login" value="' + esc(x.login) + '" aria-label="Přihlašovací e-mail" style="min-width:180px"></td><td>' + (x.role === 'admin' ? '<span class="pill good">Správkyně</span>' : '<span class="pill">Hygienistka</span>') + '</td><td class="num">' + (x.role === 'admin' ? '<span class="muted">majitelka</span>' : '<input type="number" min="0" max="100" step="5" data-st="' + i + '" data-f="share" value="' + (x.share == null ? '' : x.share) + '" aria-label="Odvod v procentech" style="width:72px"> %') + '</td><td><div class="sw" role="group" aria-label="Barva">' + STAFF_COLORS.map(function (c) { return '<button type="button" data-stcol="' + i + ':' + c + '" aria-pressed="' + (x.color === c) + '" aria-label="Barva ' + c + '" style="background:var(--' + c + ')"></button>'; }).join('') + '</div></td><td class="hint">adentdh.com/rezervace?k=' + esc(x.id) + '</td><td>' + (x.role === 'admin' ? '' : '<button type="button" class="btn ghost sm" data-delstaff="' + esc(x.id) + '" style="color:var(--bad)">Odebrat</button>') + '</td></tr>'; }).join('')
-      + '</tbody></table></div><div style="margin-top:12px"><button type="button" class="btn ghost sm" data-addstaff>+ Přidat hygienistku</button></div></section>'
       + '<section class="panel"><div class="panel-h"><h2>To-do před směnou a po směně</h2>' + info('Hygienistky uvidí seznam v kalendáři pod přehledem dne a odškrtávají ho každý den znovu. Změna textu se uloží po opuštění pole.') + '</div><div class="two">'
       + [['before', 'Před směnou'], ['after', 'Po směně']].map(function (g) { return '<div><p class="lbl" style="margin-bottom:8px">' + g[1] + '</p><div class="tdl">' + S.todo[g[0]].map(function (it, i) { return '<div class="row"><input data-tdi="' + g[0] + ':' + i + '" value="' + esc(it.text) + '" aria-label="Úkol"><button type="button" class="x" data-tdrm="' + g[0] + ':' + i + '" aria-label="Odebrat úkol">×</button></div>'; }).join('') + '</div><button type="button" class="btn ghost sm" data-tdadd="' + g[0] + '" style="margin-top:8px">+ Přidat úkol</button></div>'; }).join('')
       + '</div></section>'
@@ -1577,11 +1593,13 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
       save(); render(); return toast(a.kspan === 'day' ? 'Zavřeno na celý den' : 'Zavřeno na celou směnu ' + hm(ks.start) + '–' + hm(ks.end), true);
     }
     if (a.addstaff !== undefined) {
-      var used = S.staff.map(function (x) { return x.color; }), fc = STAFF_COLORS.filter(function (c) { return used.indexOf(c) < 0; })[0] || 'st3';
-      var nid = 'h' + (++S.seq); S.staff.push({ id: nid, name: 'Nová hygienistka', short: 'NH', role: 'staff', login: '', share: 70, color: fc });
-      undoFn = function () { S.staff = S.staff.filter(function (x) { return x.id !== nid; }); };
-      save(); render(); return toast('Hygienistka přidána. Doplňte jméno a v záložce Směny jí přidělte směny.', true);
+      var used = S.staff.map(function (x) { return x.color; });
+      ui.addStaff = { name: '', login: '', share: 70, color: STAFF_COLORS.filter(function (c) { return used.indexOf(c) < 0; })[0] || 'st3' };
+      if (ui.tab !== 'nast') { ui.tab = 'nast'; closePanel(); }
+      render(); var tm = document.getElementById('team'); if (tm && tm.scrollIntoView) tm.scrollIntoView({ block: 'start' }); var fn = document.getElementById('sf-name'); if (fn) fn.focus({ preventScroll: true }); return;
     }
+    if (a.addstaffx !== undefined) { ui.addStaff = null; return render(); }
+    if (a.sfcol) { ui.addStaff.color = a.sfcol; [].forEach.call(document.querySelectorAll('[data-sfcol]'), function (b) { b.setAttribute('aria-pressed', b.dataset.sfcol === a.sfcol); }); return; }
     if (a.delstaff) {
       var ds = staff(a.delstaff); if (!ds || ds.role === 'admin') return;
       var fut = S.bookings.filter(function (b) { return b.staff === ds.id && b.status === 'ok' && b.date >= todayIso(); });
@@ -1631,6 +1649,16 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
   app.addEventListener('submit', function (e) {
     e.preventDefault();
     var f = e.target, fd = {}; [].forEach.call(f.elements, function (el) { if (el.name) fd[el.name] = el.type === 'checkbox' ? el.checked : el.value.trim(); });
+    if (f.id === 'sf') {
+      var af = ui.addStaff; af.name = fd.name; af.login = fd.login; af.share = Math.max(0, Math.min(100, +fd.share || 0)); af.err = '';
+      if (af.name.split(/\s+/).length < 2) { af.err = 'Napište jméno i příjmení.'; return render(); }
+      if (af.login && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(af.login)) { af.err = 'Zkontrolujte e-mail.'; return render(); }
+      var pp = af.name.split(/\s+/), nid = 'h' + (++S.seq);
+      S.staff.push({ id: nid, name: af.name, short: (pp[0][0] + pp[pp.length - 1][0]).toUpperCase(), role: 'staff', login: af.login, share: af.share, color: af.color });
+      undoFn = function () { S.staff = S.staff.filter(function (x) { return x.id !== nid; }); };
+      ui.addStaff = null; save(); render();
+      return toast(af.name + ' přidána. Teď jí v záložce Směny přidělte směny.', true);
+    }
     if (f.dataset.todoadd) {
       if (!fd.t) return; var kp = f.dataset.todoadd.split('|');
       S.todoExtra.push({ id: ++S.seq, date: kp[0], staff: kp[1], text: fd.t }); save(); render();
