@@ -223,7 +223,7 @@ td input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--accent)
 .sh-blk .bl { font-weight: 650; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sh-blk .bt { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .sh-blk .bn { font-size: 11.5px; color: var(--muted); font-style: italic; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.sh-closed { position: absolute; left: 30px; right: 10px; z-index: 4; pointer-events: none; border-radius: 8px; background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--block) 92%, transparent) 0 6px, color-mix(in srgb, var(--closed) 85%, transparent) 6px 12px); border: 1px dashed var(--muted); padding: 2px 6px; overflow: hidden; font-size: 11.5px; font-weight: 650; color: var(--muted); }
+.sh-closed { position: absolute; left: 4px; right: 8px; z-index: 4; pointer-events: none; border-radius: 8px; background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--block) 92%, transparent) 0 6px, color-mix(in srgb, var(--closed) 85%, transparent) 6px 12px); border: 1px dashed var(--muted); padding: 2px 6px; overflow: hidden; font-size: 11.5px; font-weight: 650; color: var(--muted); }
 .sh-closed span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sh-closed .t { font-weight: 500; font-variant-numeric: tabular-nums; }
 .sh-pt { position: absolute; right: 1px; width: 4px; border-radius: 2px; background: color-mix(in srgb, var(--sc) 60%, transparent); pointer-events: none; z-index: 1; }
@@ -609,14 +609,26 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
     };
   }
   function migrateShifts() {
-    if (S.tpl) { if (!S.dayShifts) S.dayShifts = {}; return; }
+    if (!S.dayShifts) S.dayShifts = {};
+    if (!S.tpl && S.shiftDef) buildTpl();
+    if (S.tpl) {   // pravidelný rozpis už není – rozepíše se do konkrétních dnů (4 týdny zpět, 4 měsíce dopředu)
+      for (var d = addDays(today(), -28), d1 = addDays(today(), 7 * 18); d <= d1; d = addDays(d, 1)) {
+        var ds = iso(d), dw = d.getDay(), it = S.tpl.filter(function (t) { return t.dow === dw; });
+        if (!S.dayShifts[ds] && it.length) S.dayShifts[ds] = it.map(function (t) { return { id: ++S.seq, staff: t.staff, start: t.start, end: t.end, note: '' }; });
+      }
+      delete S.tpl;
+    }
+    if (!S.win) S.win = [420, 1200];
+    if (!S.defStaff) S.defStaff = (S.staff.filter(function (x) { return x.role === 'admin'; })[0] || S.staff[0]).id;
+  }
+  function buildTpl() {
     var def = S.shiftDef || {}, ros = S.roster || {}, ex = S.shifts || [];
     function parts(dw, who) {
       var d = def[dw], out = []; if (!d) return out;
       ['am', 'pm'].forEach(function (p) { var st = who(p); if (d[p] && st) { var l = out[out.length - 1]; if (l && l.staff === st && l.end === d[p][0]) l.end = d[p][1]; else out.push({ staff: st, start: d[p][0], end: d[p][1] }); } });
       return out;
     }
-    S.tpl = []; S.dayShifts = {};
+    S.tpl = [];
     [0, 1, 2, 3, 4, 5, 6].forEach(function (dw) { parts(dw, function (p) { return (ros[dw] || {})[p] || ''; }).forEach(function (x) { x.id = ++S.seq; x.dow = dw; S.tpl.push(x); }); });
     ex.forEach(function (z) {
       if (S.dayShifts[z.date]) return;
@@ -670,25 +682,49 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
   function viewStaff() { return isAdmin() ? ui.filter : me().id; }
   function active(b) { return b.status !== 'cancelled'; }
 
-  /* Směny = libovolné úseky času. Pravidelný týden je v S.tpl (den v týdnu),
-     upravený konkrétní den v S.dayShifts[datum] – ten pak pravidelný rozpis pro daný den celý nahradí. */
+  /* Ordinace je otevřená celý den v rozsahu S.win (zavírá se ručně v kalendáři).
+     Směny v S.dayShifts[datum] určují, kdo v danou chvíli ošetřuje; čas bez směny patří výchozí hygienistce. */
   function byStart(a, b) { return a.start - b.start; }
+  function defStaff() { return staff(S.defStaff) ? S.defStaff : (S.staff.filter(function (x) { return x.role === 'admin'; })[0] || S.staff[0]).id; }
   function shiftsOn(date) {
     var key = 'o' + date; if (memo[key]) return memo[key];
-    var dw = parse(date).getDay(), src = S.dayShifts[date] || S.tpl.filter(function (t) { return t.dow === dw; });
-    return (memo[key] = src.filter(function (x) { return staff(x.staff); }).sort(byStart));
+    return (memo[key] = (S.dayShifts[date] || []).filter(function (x) { return staff(x.staff); }).sort(byStart));
   }
-  function staffShifts(staffId, date) { return shiftsOn(date).filter(function (x) { return x.staff === staffId; }).map(function (x) { return [x.start, x.end]; }); }
-  // Obálka směn hygienistky v daný den (od první do poslední), pro popisky
+  function mergeIv(iv) {
+    var out = []; iv.sort(function (a, b) { return a[0] - b[0]; });
+    iv.forEach(function (x) { var l = out[out.length - 1]; if (l && x[0] <= l[1]) l[1] = Math.max(l[1], x[1]); else out.push(x.slice()); });
+    return out;
+  }
+  // Úseky dne, kdy ošetřuje daná hygienistka (její směny; výchozí navíc vše, co nepokrývá jiná směna)
+  function ownedIntervals(sid, date) {
+    var key = 'w' + sid + date; if (memo[key]) return memo[key];
+    var sh = shiftsOn(date), own = sh.filter(function (x) { return x.staff === sid; }).map(function (x) { return [x.start, x.end]; });
+    if (sid === defStaff()) {
+      var free = [[S.win[0], S.win[1]]];
+      sh.forEach(function (x) {
+        if (x.staff === sid) return;
+        var nf = []; free.forEach(function (f) { if (x.end <= f[0] || x.start >= f[1]) nf.push(f); else { if (x.start > f[0]) nf.push([f[0], x.start]); if (x.end < f[1]) nf.push([x.end, f[1]]); } });
+        free = nf;
+      });
+      own = own.concat(free);
+    }
+    return (memo[key] = mergeIv(own));
+  }
+  function ownersOn(date) {
+    var out = []; S.staff.forEach(function (x) { ownedIntervals(x.id, date).forEach(function (h) { out.push({ staff: x.id, start: h[0], end: h[1] }); }); });
+    return out.sort(byStart);
+  }
+  function staffShifts(staffId, date) { return ownedIntervals(staffId, date); }
+  // Obálka (od první do poslední chvíle) pro popisky
   function shiftFor(staffId, date) {
-    var iv = staffShifts(staffId, date); if (!iv.length) return null;
-    return [iv[0][0], Math.max.apply(null, iv.map(function (x) { return x[1]; }))];
+    var iv = ownedIntervals(staffId, date); if (!iv.length) return null;
+    return [iv[0][0], iv[iv.length - 1][1]];
   }
-  function shiftAt(staffId, date, min) { return staffShifts(staffId, date).filter(function (h) { return min >= h[0] && min < h[1]; })[0] || null; }
+  function shiftAt(staffId, date, min) { return ownedIntervals(staffId, date).filter(function (h) { return min >= h[0] && min < h[1]; })[0] || null; }
   function dayOff(staffId, date) { return S.blocks.some(function (k) { return k.date === date && k.staff === staffId && k.start === 0 && k.end >= 1440; }); }
   function openIntervals(date, staffId) {
     var iv = [];
-    S.staff.forEach(function (x) { if (!staffId || x.id === staffId) staffShifts(x.id, date).forEach(function (h) { iv.push(h.slice()); }); });
+    S.staff.forEach(function (x) { if (!staffId || x.id === staffId) ownedIntervals(x.id, date).forEach(function (h) { iv.push(h.slice()); }); });
     iv.sort(function (a, b) { return a[0] - b[0]; });
     var out = [];
     iv.forEach(function (x) { var l = out[out.length - 1]; if (l && x[0] <= l[1]) l[1] = Math.max(l[1], x[1]); else out.push(x); });
@@ -993,14 +1029,14 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
   function calInfo(vf) {
     return info('<p><b>Ovládání</b><br>Klepnutím na termín otevřete detail. Klepnutím do volného místa přidáte termín nebo zavřete slot. Termín i zavřený slot přesunete přetažením myší (na mobilu zavřený slot nejdřív klepnutím vyberte), délku slotu změníte tažením okraje. Kalendář posouváte kolečkem.</p>'
       + '<div class="legend">' + S.services.map(function (x) { return '<span><i style="background:' + col(x) + '"></i>' + esc(x.name) + '</span>'; }).join('')
-      + (multi() && !vf ? S.staff.map(function (x) { return '<span><i style="background:' + staffCol(x.id) + ';border-radius:50%"></i>směna ' + esc(x.name) + ' (pruh u okraje dne)</span>'; }).join('') : '')
+      + (multi() && !vf ? S.staff.map(function (x) { return '<span><i style="background:' + staffCol(x.id) + ';border-radius:50%"></i>ošetřuje ' + esc(x.name) + ' (pruh u okraje dne)</span>'; }).join('') + '<span>čas bez směny: ' + esc(staffName(defStaff())) + '</span>' : '')
       + '<span><i style="background:var(--accent);width:8px;height:8px;border-radius:50%"></i>objednáno přes web</span><span><i style="background:repeating-linear-gradient(135deg,var(--block) 0 4px,var(--closed) 4px 8px)"></i>volno / blokace</span></div>', 'Nápověda a barvy');
   }
   function grid(days, vf, dm) {
     var GS = G.GS, GE = G.GE, PX = G.PX, H = (GE - GS) * PX, td = todayIso();
     var o = '<div class="cal' + (multi() ? ' multi' : '') + '" style="--cols:' + days.length + '"><div class="cg-scroll"><div class="cg-row cg-head"><div></div>';
     days.forEach(function (d) {
-      var x = parse(d), sh = shiftsOn(d).filter(function (z) { return (!vf || z.staff === vf) && !dayOff(z.staff, d); });
+      var x = parse(d), sh = ownersOn(d).filter(function (z) { return (!vf || z.staff === vf) && !dayOff(z.staff, d); });
       o += '<button type="button" class="cg-day' + (d === td ? ' today' : '') + (dm ? ' static' : '') + '"' + (dm ? ' tabindex="-1"' : ' data-openday="' + d + '" title="Otevřít den"') + '><span class="dw">' + (dm ? DAYS[x.getDay()] : DS[x.getDay()]) + '</span><span class="dd">' + x.getDate() + '</span>'
         + '<span class="sh">' + (sh.length ? sh.map(function (z) { var s = staff(z.staff); return multi() ? '<span class="shp" style="--sc:' + staffCol(s.id) + '"><b>' + esc(s.short) + '</b>' + (dm ? esc(s.name) + ' ' : '') + hh(z.start) + '–' + hh(z.end) + '</span>' : '<span>' + hh(z.start) + '–' + hh(z.end) + '</span>'; }).join('') : '<span>zavřeno</span>') + '</span></button>';
     });
@@ -1016,7 +1052,7 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
         var a = Math.max(h[0], GS); if (a > cur) o += '<div class="cg-closed" style="top:' + (cur - GS) * PX + 'px;height:' + (a - cur) * PX + 'px"></div>';
         cur = Math.max(cur, Math.min(h[1], GE));
       });
-      if (multi()) shiftsOn(d).filter(function (z0) { return (!vf || z0.staff === vf) && !dayOff(z0.staff, d); }).forEach(function (z0, i) {
+      if (multi()) ownersOn(d).filter(function (z0) { return (!vf || z0.staff === vf) && !dayOff(z0.staff, d); }).forEach(function (z0, i) {
         var s = staff(z0.staff), h = [z0.start, z0.end], a = Math.max(h[0], GS), z = Math.min(h[1], GE); if (z <= a) return;
         var pos = 'top:' + (a - GS) * PX + 'px;height:' + (z - a) * PX + 'px;--sc:' + staffCol(s.id);
         o += '<div class="cg-shift' + (i ? ' next' : '') + '" style="' + pos + '"></div><div class="cg-band" style="' + pos + '" title="Směna: ' + esc(s.name) + ' ' + hm(h[0]) + '–' + hm(h[1]) + '"><span class="av">' + esc(s.short) + '</span>' + ((z - a) * PX > 90 ? '<span class="nm">' + esc(surname(s.id)) + '</span>' : '') + '</div>';
@@ -1221,26 +1257,15 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
   /* ---- Směny: editor ve stylu kalendáře ---- */
   var SH = { GS: 360, GE: 1260 };   // 6:00–21:00
   var DOW_ACC = ['neděli', 'pondělí', 'úterý', 'středu', 'čtvrtek', 'pátek', 'sobotu'];
-  // Sloupec je buď datum (konkrétní týden), nebo „w1“…„w0“ (den v pravidelném rozpisu)
-  function ckDow(ck) { return ck[0] === 'w' ? +ck.slice(1) : parse(ck).getDay(); }
-  function ckLabel(ck) { return ck[0] === 'w' ? 'každé ' + DOW_ACC[ckDow(ck)] : dShort(ck); }
-  function shCols() {
-    if (ui.shMode === 'tpl') return [1, 2, 3, 4, 5, 6, 0].map(function (dw) { return 'w' + dw; });
-    var mon = parse(ui.sw); return [0, 1, 2, 3, 4, 5, 6].map(function (i) { return iso(addDays(mon, i)); });
-  }
-  function shItems(ck) {
-    if (ck[0] !== 'w') return shiftsOn(ck);
-    var dw = +ck.slice(1); return S.tpl.filter(function (t) { return t.dow === dw && staff(t.staff); }).sort(byStart);
-  }
-  // Zápis do konkrétního dne: poprvé se zkopíruje pravidelný rozpis (se stejnými id)
-  function shArr(ck) {
-    if (!S.dayShifts[ck]) S.dayShifts[ck] = shiftsOn(ck).map(function (x) { return { id: x.id, staff: x.staff, start: x.start, end: x.end, note: x.note || '' }; });
-    return S.dayShifts[ck];
-  }
-  function shFind(ck, id) { return (ck[0] === 'w' ? S.tpl : shArr(ck)).filter(function (x) { return x.id === id; })[0]; }
-  function shAdd(ck, o) { o.id = ++S.seq; if (ck[0] === 'w') { o.dow = +ck.slice(1); S.tpl.push(o); } else { o.note = o.note || ''; shArr(ck).push(o); } return o; }
-  function shRemove(ck, id) { if (ck[0] === 'w') S.tpl = S.tpl.filter(function (x) { return x.id !== id; }); else S.dayShifts[ck] = shArr(ck).filter(function (x) { return x.id !== id; }); }
-  function shSnap() { var j = JSON.stringify({ t: S.tpl, d: S.dayShifts }), sel = ui.shSel; return function () { var o = JSON.parse(j); S.tpl = o.t; S.dayShifts = o.d; ui.shSel = sel; }; }
+  function ckDow(ck) { return parse(ck).getDay(); }
+  function ckLabel(ck) { return dShort(ck); }
+  function shCols() { var mon = parse(ui.sw); return [0, 1, 2, 3, 4, 5, 6].map(function (i) { return iso(addDays(mon, i)); }); }
+  function shItems(ck) { return shiftsOn(ck); }
+  function shArr(ck) { return S.dayShifts[ck] || (S.dayShifts[ck] = []); }
+  function shFind(ck, id) { return shArr(ck).filter(function (x) { return x.id === id; })[0]; }
+  function shAdd(ck, o) { o.id = ++S.seq; o.note = o.note || ''; shArr(ck).push(o); return o; }
+  function shRemove(ck, id) { S.dayShifts[ck] = shArr(ck).filter(function (x) { return x.id !== id; }); }
+  function shSnap() { var j = JSON.stringify(S.dayShifts), sel = ui.shSel; return function () { S.dayShifts = JSON.parse(j); ui.shSel = sel; }; }
   // Jedno křeslo: směny se v jednom dni nesmí překrývat
   function shFree(ck, a, z, ignoreId) { return shItems(ck).every(function (x) { return x.id === ignoreId || z <= x.start || a >= x.end; }); }
   function shLimits(ck, id, a, z) {
@@ -1248,41 +1273,41 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
     shItems(ck).forEach(function (x) { if (x.id === id) return; if (x.end <= a) lo = Math.max(lo, x.end); if (x.start >= z) hi = Math.min(hi, x.start); });
     return [lo, hi];
   }
+  // Pacienti, kteří po změně směn připadli na čas jiné hygienistky
   function shOutside(cols) {
     var out = [];
-    cols.forEach(function (ck) { if (ck[0] === 'w') return; S.bookings.forEach(function (b) { if (b.date === ck && b.status === 'ok' && !staffShifts(b.staff, ck).some(function (h) { return b.start >= h[0] && b.start + b.dur <= h[1]; })) out.push(b); }); });
+    cols.forEach(function (ck) { S.bookings.forEach(function (b) { if (b.date === ck && b.status === 'ok' && !ownedIntervals(b.staff, ck).some(function (h) { return b.start >= h[0] && b.start < h[1]; })) out.push(b); }); });
     return out;
   }
   function admShifts() {
     if (!ui.sw) ui.sw = iso(monday(today()));
-    var mob = isMobile(), tpl = ui.shMode === 'tpl', cols = shCols(), td = todayIso();
+    var mob = isMobile(), cols = shCols(), td = todayIso();
     G.GS = SH.GS; G.GE = SH.GE; G.PX = mob ? 1.1 : 0.9;
     if (ui.shDi == null || ui.shDi >= cols.length) ui.shDi = Math.max(0, cols.indexOf(td));
     var vis = mob ? [cols[ui.shDi]] : cols, a = parse(cols[0]), z = parse(cols[6]);
-    var title = tpl ? 'Pravidelný týden' : a.getDate() + '.' + (a.getMonth() !== z.getMonth() ? ' ' + MONTHS_G[a.getMonth()] : '') + ' – ' + z.getDate() + '. ' + MONTHS_G[z.getMonth()] + ' ' + z.getFullYear();
+    var title = a.getDate() + '.' + (a.getMonth() !== z.getMonth() ? ' ' + MONTHS_G[a.getMonth()] : '') + ' – ' + z.getDate() + '. ' + MONTHS_G[z.getMonth()] + ' ' + z.getFullYear();
     var sheet = mob && ui.shSel && ui.shOpen;
     var o = '<div class="cols"><div style="min-width:0">'
-      + '<div class="cal-bar"><div class="cal-nav">' + (tpl ? '' : '<button type="button" class="ib" data-sw="-1" aria-label="Předchozí týden">‹</button><button type="button" class="btn ghost sm" data-sw="0">Tento týden</button><button type="button" class="ib" data-sw="1" aria-label="Další týden">›</button>') + '<h2 class="cal-title">' + esc(title) + '</h2></div>'
-      + '<div class="cal-tools"><div class="seg" role="group" aria-label="Co upravuji"><button type="button" data-shmode="week" aria-pressed="' + !tpl + '">Konkrétní týden</button><button type="button" data-shmode="tpl" aria-pressed="' + tpl + '">Pravidelný rozpis</button></div>'
-      + info('<p><b>Přidání:</b> klepněte do prázdného místa a vyberte, kdo bude mít směnu.</p><p><b>Úpravy:</b> směnu přesunete tažením (i do jiného dne), délku změníte tažením horního nebo spodního okraje. Na mobilu směnu nejdřív klepnutím vyberte. Vybranou směnu smažete klávesou Delete.</p><p><b>Pravidelný rozpis</b> platí pro všechny týdny. Změna v <b>konkrétním týdnu</b> platí jen pro ten den – den se označí „upraveno“ a jde vrátit zpět.</p><p>V ordinaci je jedno křeslo, proto se směny nesmí překrývat. Tenké proužky u pravého okraje jsou objednaní pacienti.</p><p><b>Šrafované pole</b> je zavřený slot z kalendáře (oběd, dovolená…). Tady je jen pro přehled – zavírat a upravovat sloty jde pouze v Kalendáři.</p>', 'Jak upravovat směny') + '</div></div>';
+      + '<div class="cal-bar"><div class="cal-nav"><button type="button" class="ib" data-sw="-1" aria-label="Předchozí týden">‹</button><button type="button" class="btn ghost sm" data-sw="0">Tento týden</button><button type="button" class="ib" data-sw="1" aria-label="Další týden">›</button><h2 class="cal-title">' + esc(title) + '</h2></div>'
+      + '<div class="cal-tools"><button type="button" class="btn ghost sm" data-shcopy>Zkopírovat minulý týden</button>'
+      + info('<p><b>Přidání:</b> klepněte do prázdného místa a vyberte, kdo bude mít směnu.</p><p><b>Úpravy:</b> směnu přesunete tažením (i do jiného dne), délku změníte tažením horního nebo spodního okraje. Na mobilu směnu nejdřív klepnutím vyberte. Vybranou směnu smažete klávesou Delete.</p><p><b>Bez směny:</b> ordinace je otevřená celý den a čas bez směny patří hygienistce <b>' + esc(staffName(defStaff())) + '</b> (změníte v Nastavení). Zavřít čas jde jen v Kalendáři.</p><p>V ordinaci je jedno křeslo, proto se směny nesmí překrývat. Tenké proužky u pravého okraje jsou objednaní pacienti, šrafované pole zavřený čas z kalendáře.</p>', 'Jak upravovat směny') + '</div></div>';
     if (mob) o += '<div class="dstrip" role="group" aria-label="Den" style="--n:' + cols.length + '">' + cols.map(function (ck, i) {
       var it = shItems(ck);
-      return '<button type="button" data-shdi="' + i + '" aria-pressed="' + (i === ui.shDi) + '"' + (ck === td ? ' class="today"' : '') + '>' + DS[ckDow(ck)] + (tpl ? '' : '<b>' + parse(ck).getDate() + '</b>') + '<span class="n">' + (it.length ? it.map(function (x) { return esc(staff(x.staff).short); }).join(' ') : '–') + '</span></button>';
+      return '<button type="button" data-shdi="' + i + '" aria-pressed="' + (i === ui.shDi) + '"' + (ck === td ? ' class="today"' : '') + '>' + DS[ckDow(ck)] + '<b>' + parse(ck).getDate() + '</b><span class="n">' + (it.length ? it.map(function (x) { return esc(staff(x.staff).short); }).join(' ') : '–') + '</span></button>';
     }).join('') + '</div>';
-    o += '<div class="cal-sub"><span class="hint">' + (tpl ? 'Platí každý týden, pokud den nemá vlastní úpravu.' : 'Změny platí jen pro tento týden.') + '</span></div>'
-      + shGrid(vis, tpl)
-      + '</div><aside class="side' + (sheet ? ' sheet' : '') + '">' + (sheet ? '<div class="sheet-bar"><span>Směna</span><button type="button" class="btn ghost sm" data-close>Zavřít</button></div>' : '') + (ui.shSel && (!mob || ui.shOpen) ? shDetail(cols) : shSummary(cols, tpl)) + '</aside>'
+    o += '<div class="cal-sub"><span class="hint">Čas bez směny ošetřuje <b>' + esc(staffName(defStaff())) + '</b>.</span></div>'
+      + shGrid(vis)
+      + '</div><aside class="side' + (sheet ? ' sheet' : '') + '">' + (sheet ? '<div class="sheet-bar"><span>Směna</span><button type="button" class="btn ghost sm" data-close>Zavřít</button></div>' : '') + (ui.shSel && (!mob || ui.shOpen) ? shDetail(cols) : shSummary(cols)) + '</aside>'
       + (sheet ? '<div class="backdrop" data-close></div>' : '') + '</div>';
     return o;
   }
-  function shGrid(cols, tpl) {
+  function shGrid(cols) {
     var GS = G.GS, GE = G.GE, PX = G.PX, H = (GE - GS) * PX, td = todayIso();
     var o = '<div class="cal shcal" style="--cols:' + cols.length + '"><div class="cg-scroll" data-sk="shScroll"><div class="cg-row cg-head"><div></div>';
     cols.forEach(function (ck) {
-      var dw = ckDow(ck), it = shItems(ck), cust = !tpl && S.dayShifts[ck];
-      o += '<div class="cg-day static' + (ck === td ? ' today' : '') + '"><span class="dw">' + (tpl && cols.length === 1 ? DAYS[dw] : DS[dw]) + '</span>' + (tpl ? '' : '<span class="dd">' + parse(ck).getDate() + '</span>')
-        + '<span class="sh"><span>' + (it.length ? hh(it[0].start) + '–' + hh(Math.max.apply(null, it.map(function (x) { return x.end; }))) : 'zavřeno') + '</span></span>'
-        + (cust ? '<button type="button" class="mini" data-shreset="' + ck + '" title="Vrátit den na pravidelný rozpis">upraveno ↺</button>' : '') + '</div>';
+      var dw = ckDow(ck), it = shItems(ck), nb = S.blocks.filter(function (k) { return k.date === ck; }).length;
+      o += '<div class="cg-day static' + (ck === td ? ' today' : '') + '"><span class="dw">' + (cols.length === 1 ? DAYS[dw] : DS[dw]) + '</span><span class="dd">' + parse(ck).getDate() + '</span>'
+        + '<span class="sh"><span>' + (it.length ? it.length + ' ' + plural(it.length, 'směna', 'směny', 'směn') : 'bez směny') + '</span></span></div>';
     });
     o += '</div><div class="cg-row cg-body"><div class="cg-times" style="height:' + H + 'px"><span style="top:0;transform:translateY(4px)">' + hm(GS) + '</span>';
     for (var t = GS + 60; t < GE; t += 60) o += '<span style="top:' + (t - GS) * PX + 'px">' + hm(t) + '</span>';
@@ -1290,7 +1315,10 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
     cols.forEach(function (ck) {
       o += '<div class="cg-col" data-scol="' + ck + '" style="height:' + H + 'px">';
       for (var t2 = GS + 30; t2 < GE; t2 += 30) o += '<div class="hl' + (t2 % 60 ? ' half' : '') + '" style="top:' + (t2 - GS) * PX + 'px"></div>';
-      if (!tpl) S.bookings.forEach(function (b) { if (b.date === ck && b.status === 'ok') o += '<div class="sh-pt" style="top:' + (b.start - GS) * PX + 'px;height:' + b.dur * PX + 'px;--sc:' + staffCol(b.staff) + '"></div>'; });
+      // mimo otevírací rozsah
+      if (S.win[0] > GS) o += '<div class="cg-closed" style="top:0;height:' + (S.win[0] - GS) * PX + 'px;pointer-events:none"></div>';
+      if (S.win[1] < GE) o += '<div class="cg-closed" style="top:' + (S.win[1] - GS) * PX + 'px;height:' + (GE - S.win[1]) * PX + 'px;pointer-events:none"></div>';
+      S.bookings.forEach(function (b) { if (b.date === ck && b.status === 'ok') o += '<div class="sh-pt" style="top:' + (b.start - GS) * PX + 'px;height:' + b.dur * PX + 'px;--sc:' + staffCol(b.staff) + '"></div>'; });
       shItems(ck).forEach(function (x) {
         var s = staff(x.staff), a = Math.max(x.start, GS), z = Math.min(x.end, GE), ht = (z - a) * PX - 2, sel = ui.shSel && ui.shSel.ck === ck && ui.shSel.id === x.id;
         if (z <= a) return;
@@ -1300,12 +1328,12 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
           + (ht > 40 ? '<span class="bt">' + hm(x.start) + '–' + hm(x.end) + '</span>' : '') + (x.note && ht > 64 ? '<span class="bn">' + esc(x.note) + '</span>' : '')
           + '<span class="rz rz-b" data-rz="b" aria-label="Posunout konec"></span></div>';
       });
-      // zavřené sloty z kalendáře – jen pro přehled, upravují se v kalendáři
-      if (!tpl) S.blocks.forEach(function (k) {
+      // zavřený čas z kalendáře – jen pro přehled, upravuje se v kalendáři
+      S.blocks.forEach(function (k) {
         if (k.date !== ck) return;
         var a = Math.max(k.start, GS), z = Math.min(k.end, GE); if (z <= a) return;
         var full = k.start === 0 && k.end >= 1440, ht = (z - a) * PX - 2;
-        o += '<div class="sh-closed" style="top:' + ((a - GS) * PX + 1) + 'px;height:' + ht + 'px"><span>' + esc(k.reason || 'Zavřeno') + (k.staff && multi() ? ' · ' + esc(surname(k.staff)) : '') + '</span>' + (ht > 30 ? '<span class="t">' + (full ? 'celý den' : hm(k.start) + '–' + hm(k.end)) + '</span>' : '') + '</div>';
+        o += '<div class="sh-closed" style="top:' + ((a - GS) * PX + 1) + 'px;height:' + ht + 'px" title="Zavřeno v kalendáři"><span>🔒 ' + esc(k.reason || 'Zavřeno') + (k.staff && multi() ? ' · ' + esc(surname(k.staff)) : '') + '</span>' + (ht > 30 ? '<span class="t">' + (full ? 'celý den' : hm(k.start) + '–' + hm(k.end)) + '</span>' : '') + '</div>';
       });
       if (ui.shQuick && ui.shQuick.ck === ck) {
         var qt = ui.shQuick.min, qtop = (qt - GS) * PX, ph = 40 + 42 * S.staff.length, flip = qtop + 30 * PX + ph > H;
@@ -1317,32 +1345,27 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
     });
     return o + '</div></div></div>';
   }
-  function shSummary(cols, tpl) {
+  function shSummary(cols) {
     var rows = S.staff.map(function (s) {
       var n = 0, m = 0; cols.forEach(function (ck) { shItems(ck).forEach(function (x) { if (x.staff === s.id) { n++; m += x.end - x.start; } }); });
       return '<div><span class="avatar" style="background:' + staffCol(s.id) + '">' + esc(s.short) + '</span><span><b>' + esc(s.name) + '</b><span class="hint">' + n + ' ' + plural(n, 'směna', 'směny', 'směn') + ' · ' + hh(m) + ' h</span></span></div>';
     }).join('');
-    var o = '<section class="panel"><div class="panel-h"><h2 style="font-size:19px">' + (tpl ? 'Pravidelný týden' : 'Tento týden') + '</h2></div><div class="wsum one">' + rows + '</div>';
-    var out = tpl ? [] : shOutside(cols);
-    if (out.length) o += '<div class="warn" style="margin-top:12px"><b>Pacienti mimo směnu (' + out.length + ')</b><br>' + out.map(function (b) { return esc(dShort(b.date)) + ' ' + hm(b.start) + ' · ' + esc(b.name) + (multi() ? ' · ' + esc(surname(b.staff)) : ''); }).join('<br>') + '<br>Upravte směnu, nebo pacienta přesuňte v kalendáři.</div>';
-    if (!tpl) {
-      var cust = cols.filter(function (ck) { return S.dayShifts[ck]; }).length;
-      o += '<div class="stack" style="gap:8px;margin-top:14px"><button type="button" class="btn ghost block" data-shtotpl>Uložit tento týden jako pravidelný</button>'
-        + (cust ? '<button type="button" class="btn ghost block" data-shresetwk>Vrátit týden na pravidelný rozpis (' + cust + ' ' + plural(cust, 'upravený den', 'upravené dny', 'upravených dnů') + ')</button>' : '') + '</div>';
-    }
+    var o = '<section class="panel"><div class="panel-h"><h2 style="font-size:19px">Tento týden</h2></div><div class="wsum one">' + rows + '</div>';
+    var out = shOutside(cols);
+    if (out.length) o += '<div class="warn" style="margin-top:12px"><b>Pacienti mimo směnu (' + out.length + ')</b><br>' + out.map(function (b) { return esc(dShort(b.date)) + ' ' + hm(b.start) + ' · ' + esc(b.name) + (multi() ? ' · ' + esc(surname(b.staff)) : ''); }).join('<br>') + '<br>V tu dobu má směnu jiná hygienistka. Upravte směnu, nebo pacienta předejte v kalendáři.</div>';
     o += '<button type="button" class="btn ghost block" data-addstaff style="margin-top:8px">+ Přidat hygienistku do týmu</button>';
     return o + '<p class="hint" style="margin-top:14px">Klepněte do prázdného místa v rozpisu a přidejte směnu. Směny přesouváte a prodlužujete tažením.</p></section>';
   }
   function shDetail(cols) {
     var q = ui.shSel, x = shItems(q.ck).filter(function (i) { return i.id === q.id; })[0];
-    if (!x) { ui.shSel = null; return shSummary(cols, ui.shMode === 'tpl'); }
-    var tpl = q.ck[0] === 'w', when = tpl ? 'Každé ' + DOW_ACC[ckDow(q.ck)] : cap(dLong(q.ck));
-    var o = '<section class="panel"><div class="dhead"><span class="bar" style="background:' + staffCol(x.staff) + '"></span><div><h3>Směna</h3><div class="dwhen">' + esc(when) + '</div><div class="hint">' + hm(x.start) + '–' + hm(x.end) + ' · ' + hh(x.end - x.start) + ' h' + (tpl ? ' · pravidelně' : S.dayShifts[q.ck] ? ' · upravený den' : '') + '</div></div><button type="button" class="x" data-close aria-label="Zavřít">×</button></div>';
+    if (!x) { ui.shSel = null; return shSummary(cols); }
+    var when = cap(dLong(q.ck));
+    var o = '<section class="panel"><div class="dhead"><span class="bar" style="background:' + staffCol(x.staff) + '"></span><div><h3>Směna</h3><div class="dwhen">' + esc(when) + '</div><div class="hint">' + hm(x.start) + '–' + hm(x.end) + ' · ' + hh(x.end - x.start) + ' h</div></div><button type="button" class="x" data-close aria-label="Zavřít">×</button></div>';
     o += '<p class="lbl" style="margin:16px 0 8px">Kdo má směnu</p><div class="opts">' + S.staff.map(function (s) {
       return '<button type="button" class="opt" data-shwho="' + s.id + '" aria-pressed="' + (x.staff === s.id) + '"><span class="avatar" style="background:' + staffCol(s.id) + '">' + esc(s.short) + '</span>' + esc(s.name) + (x.staff === s.id ? '<span class="chk">✓</span>' : '') + '</button>';
     }).join('') + '</div>';
     o += '<div class="two" style="margin-top:14px"><label class="field" for="sh-a">Od<input id="sh-a" type="time" step="900" data-shtime="start" value="' + hm(x.start).padStart(5, '0') + '"></label><label class="field" for="sh-z">Do<input id="sh-z" type="time" step="900" data-shtime="end" value="' + hm(x.end).padStart(5, '0') + '"></label></div>';
-    if (!tpl) {
+    {
       o += '<label class="field" for="sh-n" style="margin-top:10px">Poznámka <span class="hint">nepovinné</span><input id="sh-n" data-shnote value="' + esc(x.note || '') + '" placeholder="např. zástup za kolegyni"></label>';
       var pts = S.bookings.filter(function (b) { return b.date === q.ck && b.status === 'ok' && b.staff === x.staff && b.start < x.end && b.start + b.dur > x.start; }).length;
       if (pts) o += '<p class="hint" style="margin-top:10px">V této směně ' + plural(pts, 'je objednaný', 'jsou objednaní', 'je objednáno') + ' ' + pts + ' ' + plural(pts, 'pacient', 'pacienti', 'pacientů') + '.</p>';
@@ -1434,6 +1457,9 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
       + '</tbody></table></div></section>'
       + '<section class="panel"><div class="panel-h"><h2>Objednávání přes web</h2></div><div class="two">'
       + '<label class="field" for="s-h">Jak dlouho dopředu se lze objednat<select id="s-h">' + [1, 2, 3, 4, 6, 12].map(function (m) { return '<option value="' + m + '"' + (m === S.horizonMonths ? ' selected' : '') + '>' + m + ' ' + plural(m, 'měsíc', 'měsíce', 'měsíců') + '</option>'; }).join('') + '</select></label>'
+      + '<label class="field" for="s-w0">Kalendář otevřen od<input type="time" step="900" id="s-w0" value="' + hm(S.win[0]).padStart(5, '0') + '"></label>'
+      + '<label class="field" for="s-w1">do<input type="time" step="900" id="s-w1" value="' + hm(S.win[1]).padStart(5, '0') + '"></label>'
+      + '<label class="field" for="s-def">Čas bez směny ošetřuje<select id="s-def">' + S.staff.map(function (x) { return '<option value="' + x.id + '"' + (x.id === defStaff() ? ' selected' : '') + '>' + esc(x.name) + '</option>'; }).join('') + '</select></label>'
       + '<label class="field" for="s-st">Začátky termínů po<select id="s-st">' + [10, 15, 30].map(function (m) { return '<option value="' + m + '"' + (m === S.step ? ' selected' : '') + '>' + m + ' minutách</option>'; }).join('') + '</select></label></div></section>'
       + '<section class="panel"><div class="panel-h"><h2>To-do před směnou a po směně</h2>' + info('Hygienistky uvidí seznam v kalendáři pod přehledem dne a odškrtávají ho každý den znovu. Změna textu se uloží po opuštění pole.') + '</div><div class="two">'
       + [['before', 'Před směnou'], ['after', 'Po směně']].map(function (g) { return '<div><p class="lbl" style="margin-bottom:8px">' + g[1] + '</p><div class="tdl">' + S.todo[g[0]].map(function (it, i) { return '<div class="row"><input data-tdi="' + g[0] + ':' + i + '" value="' + esc(it.text) + '" aria-label="Úkol"><button type="button" class="x" data-tdrm="' + g[0] + ':' + i + '" aria-label="Odebrat úkol">×</button></div>'; }).join('') + '</div><button type="button" class="btn ghost sm" data-tdadd="' + g[0] + '" style="margin-top:8px">+ Přidat úkol</button></div>'; }).join('')
@@ -1521,7 +1547,10 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
     }
     if (a.goadm !== undefined) { var b0 = byId(S.bookings, ui.last); ui.tab = 'kal'; ui.cur = b0.date; closePanel(); ui.sel = b0.id; if (!isAdmin() && me().id !== b0.staff) ui.user = b0.staff; ui.filter = ''; return setView('adm'); }
     /* ---------- ordinace ---------- */
-    if (a.tab) { ui.tab = a.tab; ui.err = ''; closePanel(); render(); window.scrollTo(0, 0); return; }
+    if (a.tab) {
+      if (a.tab === 'smeny') ui.sw = iso(monday(parse(ui.cur)));
+      if (a.tab === 'kal' && ui.tab === 'smeny' && ui.sw && weekDays(ui.cur).indexOf(ui.sw) < 0) ui.cur = ui.sw;
+      ui.tab = a.tab; ui.err = ''; closePanel(); render(); window.scrollTo(0, 0); return; }
     if (a.nav) { navCal(+a.nav); closePanel(); return render(); }
     if (a.mode) { ui.mode = a.mode; try { sessionStorage.setItem('rez2_mode', a.mode); } catch (x) {} return render(); }
     if (a.openday) { ui.cur = a.openday; ui.mode = 'day'; closePanel(); return render(); }
@@ -1554,7 +1583,6 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
     if (a.savenew !== undefined) return saveNew();
     if (a.bm) { var bm = parse(ui.bm); ui.bm = iso(new Date(bm.getFullYear(), bm.getMonth() + (+a.bm), 1)); return render(); }
     if (a.sw) { ui.sw = a.sw === '0' ? iso(monday(today())) : iso(addDays(parse(ui.sw), 7 * +a.sw)); ui.shSel = null; ui.shQuick = null; return render(); }
-    if (a.shmode) { ui.shMode = a.shmode; ui.shSel = null; ui.shQuick = null; return render(); }
     if (a.shdi !== undefined) { ui.shDi = +a.shdi; ui.shSel = null; ui.shQuick = null; return render(); }
     if (a.sh && a.ck) { ui.shQuick = null; ui.shSel = { ck: a.ck, id: +a.sh }; ui.shOpen = true; return render(); }
     if (a.scol !== undefined && t.classList.contains('cg-col')) {
@@ -1569,12 +1597,10 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
       var qs = ui.shSel, u0 = shSnap(), xs = qs && shFind(qs.ck, qs.id); if (!xs || xs.staff === a.shwho) return;
       xs.staff = a.shwho; undoFn = u0; save(); render(); return toast('Směnu má ' + staffName(a.shwho), true);
     }
-    if (a.shreset) { var u1 = shSnap(); delete S.dayShifts[a.shreset]; undoFn = u1; ui.shSel = null; save(); render(); return toast(cap(dShort(a.shreset)) + ' vrácen na pravidelný rozpis', true); }
-    if (a.shresetwk !== undefined) { var u2 = shSnap(); shCols().forEach(function (ck) { delete S.dayShifts[ck]; }); undoFn = u2; ui.shSel = null; save(); render(); return toast('Týden vrácen na pravidelný rozpis', true); }
-    if (a.shtotpl !== undefined) {
-      var u3 = shSnap();
-      shCols().forEach(function (ck) { var dw = ckDow(ck), its = shiftsOn(ck).slice(); S.tpl = S.tpl.filter(function (x) { return x.dow !== dw; }).concat(its.map(function (x) { return { id: ++S.seq, dow: dw, staff: x.staff, start: x.start, end: x.end }; })); delete S.dayShifts[ck]; });
-      undoFn = u3; save(); render(); return toast('Tento týden je teď pravidelný rozpis', true);
+    if (a.shcopy !== undefined) {
+      var u5 = shSnap(), cs0 = shCols(), n5 = 0;
+      cs0.forEach(function (ck) { var prev = iso(addDays(parse(ck), -7)); S.dayShifts[ck] = (S.dayShifts[prev] || []).map(function (x) { n5++; return { id: ++S.seq, staff: x.staff, start: x.start, end: x.end, note: '' }; }); });
+      undoFn = u5; ui.shSel = null; save(); render(); return toast('Zkopírováno ' + n5 + ' ' + plural(n5, 'směna', 'směny', 'směn') + ' z minulého týdne', true);
     }
     if (a.delblk) {
       var gone = byId(S.blocks, +a.delblk); S.blocks = S.blocks.filter(function (k) { return k.id !== +a.delblk; });
@@ -1604,13 +1630,12 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
       var ds = staff(a.delstaff); if (!ds || ds.role === 'admin') return;
       var fut = S.bookings.filter(function (b) { return b.staff === ds.id && b.status === 'ok' && b.date >= todayIso(); });
       if (fut.length) return toast(ds.name + ' má ' + fut.length + ' ' + plural(fut.length, 'budoucí termín', 'budoucí termíny', 'budoucích termínů') + '. Nejdřív je přesuňte na jinou hygienistku.');
-      var snapS = JSON.stringify({ staff: S.staff, tpl: S.tpl, dayShifts: S.dayShifts, blocks: S.blocks });
+      var snapS = JSON.stringify({ staff: S.staff, dayShifts: S.dayShifts, blocks: S.blocks });
       S.staff = S.staff.filter(function (x) { return x.id !== ds.id; });
-      S.tpl = S.tpl.filter(function (z) { return z.staff !== ds.id; });
       Object.keys(S.dayShifts).forEach(function (k) { S.dayShifts[k] = S.dayShifts[k].filter(function (z) { return z.staff !== ds.id; }); });
       S.blocks = S.blocks.filter(function (k) { return k.staff !== ds.id; });
       if (ui.filter === ds.id) ui.filter = '';
-      undoFn = function () { var o0 = JSON.parse(snapS); S.staff = o0.staff; S.tpl = o0.tpl; S.dayShifts = o0.dayShifts; S.blocks = o0.blocks; };
+      undoFn = function () { var o0 = JSON.parse(snapS); S.staff = o0.staff; S.dayShifts = o0.dayShifts; S.blocks = o0.blocks; };
       save(); render(); return toast(ds.name + ' odebrána. Její směny jsou volné k přidělení.', true);
     }
     if (a.stcol) { var sc0 = a.stcol.split(':'); S.staff[+sc0[0]].color = sc0[1]; save(); return render(); }
@@ -1713,6 +1738,13 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
     if (t.id === 'm-notify') { ui.mv.notify = t.checked; return; }
     if (t.id === 's-h') { S.horizonMonths = +t.value; save(); return toast('Uloženo'); }
     if (t.id === 's-st') { S.step = +t.value; save(); return toast('Uloženo'); }
+    if (t.id === 's-w0' || t.id === 's-w1') {
+      var wv = hmToMin(t.value); if (isNaN(wv)) return;
+      var w0 = t.id === 's-w0' ? wv : S.win[0], w1 = t.id === 's-w1' ? wv : S.win[1];
+      if (w1 - w0 < 60) { render(); return toast('Konec musí být aspoň hodinu po začátku'); }
+      S.win = [w0, w1]; save(); render(); return toast('Kalendář je otevřený ' + hm(w0) + '–' + hm(w1) + ' každý den. Zavírat jde ručně v kalendáři.');
+    }
+    if (t.id === 's-def') { S.defStaff = t.value; save(); render(); return toast('Čas bez směny ošetřuje ' + staffName(t.value)); }
     if (t.id === 'lm-on') { S.lm.on = t.checked; save(); return toast('Uloženo'); }
     if (t.id === 'lm-pct') { S.lm.pct = +t.value; save(); return toast('Uloženo'); }
     if (t.id === 'lm-h') { S.lm.hours = +t.value; save(); return toast('Uloženo'); }
