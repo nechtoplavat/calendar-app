@@ -223,6 +223,9 @@ td input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--accent)
 .sh-blk .bl { font-weight: 650; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sh-blk .bt { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .sh-blk .bn { font-size: 11.5px; color: var(--muted); font-style: italic; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sh-closed { position: absolute; left: 30px; right: 10px; z-index: 4; pointer-events: none; border-radius: 8px; background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--block) 92%, transparent) 0 6px, color-mix(in srgb, var(--closed) 85%, transparent) 6px 12px); border: 1px dashed var(--muted); padding: 2px 6px; overflow: hidden; font-size: 11.5px; font-weight: 650; color: var(--muted); }
+.sh-closed span { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sh-closed .t { font-weight: 500; font-variant-numeric: tabular-nums; }
 .sh-pt { position: absolute; right: 1px; width: 4px; border-radius: 2px; background: color-mix(in srgb, var(--sc) 60%, transparent); pointer-events: none; z-index: 1; }
 .shcal .cg-day { position: relative; }
 .mini { border: 0; background: var(--peach-soft); border-radius: 999px; font-size: 11px; font-weight: 650; padding: 2px 8px; cursor: pointer; color: var(--text); margin-top: 3px; white-space: nowrap; }
@@ -1257,7 +1260,7 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
     var o = '<div class="cols"><div style="min-width:0">'
       + '<div class="cal-bar"><div class="cal-nav">' + (tpl ? '' : '<button type="button" class="ib" data-sw="-1" aria-label="Předchozí týden">‹</button><button type="button" class="btn ghost sm" data-sw="0">Tento týden</button><button type="button" class="ib" data-sw="1" aria-label="Další týden">›</button>') + '<h2 class="cal-title">' + esc(title) + '</h2></div>'
       + '<div class="cal-tools"><div class="seg" role="group" aria-label="Co upravuji"><button type="button" data-shmode="week" aria-pressed="' + !tpl + '">Konkrétní týden</button><button type="button" data-shmode="tpl" aria-pressed="' + tpl + '">Pravidelný rozpis</button></div>'
-      + info('<p><b>Přidání:</b> klepněte do prázdného místa a vyberte, kdo bude mít směnu.</p><p><b>Úpravy:</b> směnu přesunete tažením (i do jiného dne), délku změníte tažením horního nebo spodního okraje. Na mobilu směnu nejdřív klepnutím vyberte. Vybranou směnu smažete klávesou Delete.</p><p><b>Pravidelný rozpis</b> platí pro všechny týdny. Změna v <b>konkrétním týdnu</b> platí jen pro ten den – den se označí „upraveno“ a jde vrátit zpět.</p><p>V ordinaci je jedno křeslo, proto se směny nesmí překrývat. Tenké proužky u pravého okraje jsou objednaní pacienti.</p>', 'Jak upravovat směny') + '</div></div>';
+      + info('<p><b>Přidání:</b> klepněte do prázdného místa a vyberte, kdo bude mít směnu.</p><p><b>Úpravy:</b> směnu přesunete tažením (i do jiného dne), délku změníte tažením horního nebo spodního okraje. Na mobilu směnu nejdřív klepnutím vyberte. Vybranou směnu smažete klávesou Delete.</p><p><b>Pravidelný rozpis</b> platí pro všechny týdny. Změna v <b>konkrétním týdnu</b> platí jen pro ten den – den se označí „upraveno“ a jde vrátit zpět.</p><p>V ordinaci je jedno křeslo, proto se směny nesmí překrývat. Tenké proužky u pravého okraje jsou objednaní pacienti.</p><p><b>Šrafované pole</b> je zavřený slot z kalendáře (oběd, dovolená…). Tady je jen pro přehled – zavírat a upravovat sloty jde pouze v Kalendáři.</p>', 'Jak upravovat směny') + '</div></div>';
     if (mob) o += '<div class="dstrip" role="group" aria-label="Den" style="--n:' + cols.length + '">' + cols.map(function (ck, i) {
       var it = shItems(ck);
       return '<button type="button" data-shdi="' + i + '" aria-pressed="' + (i === ui.shDi) + '"' + (ck === td ? ' class="today"' : '') + '>' + DS[ckDow(ck)] + (tpl ? '' : '<b>' + parse(ck).getDate() + '</b>') + '<span class="n">' + (it.length ? it.map(function (x) { return esc(staff(x.staff).short); }).join(' ') : '–') + '</span></button>';
@@ -1292,6 +1295,13 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
           + '<span class="hd"><span class="av">' + esc(s.short) + '</span><span class="bl">' + esc(surname(s.id)) + '</span></span>'
           + (ht > 40 ? '<span class="bt">' + hm(x.start) + '–' + hm(x.end) + '</span>' : '') + (x.note && ht > 64 ? '<span class="bn">' + esc(x.note) + '</span>' : '')
           + '<span class="rz rz-b" data-rz="b" aria-label="Posunout konec"></span></div>';
+      });
+      // zavřené sloty z kalendáře – jen pro přehled, upravují se v kalendáři
+      if (!tpl) S.blocks.forEach(function (k) {
+        if (k.date !== ck) return;
+        var a = Math.max(k.start, GS), z = Math.min(k.end, GE); if (z <= a) return;
+        var full = k.start === 0 && k.end >= 1440, ht = (z - a) * PX - 2;
+        o += '<div class="sh-closed" style="top:' + ((a - GS) * PX + 1) + 'px;height:' + ht + 'px"><span>' + esc(k.reason || 'Zavřeno') + (k.staff && multi() ? ' · ' + esc(surname(k.staff)) : '') + '</span>' + (ht > 30 ? '<span class="t">' + (full ? 'celý den' : hm(k.start) + '–' + hm(k.end)) + '</span>' : '') + '</div>';
       });
       if (ui.shQuick && ui.shQuick.ck === ck) {
         var qt = ui.shQuick.min, qtop = (qt - GS) * PX, ph = 40 + 42 * S.staff.length, flip = qtop + 30 * PX + ph > H;
