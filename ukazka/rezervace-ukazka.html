@@ -53,6 +53,8 @@ h2 { font-family: var(--f-d); font-weight: 500; font-size: 22px; letter-spacing:
 h3 { font-size: 15px; font-weight: 650; }
 p { margin: 0; }
 .wrap { max-width: 1240px; margin: 0 auto; padding: 16px 16px 24px; }
+body[data-view="adm"] .wrap { max-width: 1880px; }
+@media (min-width: 1500px) { body[data-view="adm"] .wrap { padding-inline: 28px; } .cols { grid-template-columns: minmax(0, 1fr) 380px; gap: 22px; } }
 .muted { color: var(--muted); }
 .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .stack { display: grid; gap: 12px; }
@@ -188,7 +190,7 @@ td input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--accent)
 .cal { background: var(--paper); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow); overflow: hidden; }
 .cg-row { display: grid; grid-template-columns: 52px repeat(var(--cols), minmax(0, 1fr)); }
 .cg-head { border-bottom: 1px solid var(--line); background: var(--paper); box-shadow: 0 1px 0 var(--line); }
-.cg-day { border: 0; border-left: 1px solid var(--line-2); background: none; cursor: pointer; padding: 10px 4px 9px; display: grid; justify-items: center; gap: 2px; color: var(--text); min-width: 0; }
+.cg-day { border: 0; border-left: 1px solid var(--line-2); background: none; cursor: pointer; padding: 10px 4px 9px; display: grid; justify-items: center; align-content: start; gap: 2px; color: var(--text); min-width: 0; }
 .cg-day .dw { font-size: 11px; font-weight: 650; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
 .cg-day .dd { font-size: 20px; font-weight: 600; width: 36px; height: 36px; display: grid; place-items: center; border-radius: 50%; font-variant-numeric: tabular-nums; }
 .cg-day.today .dd { background: var(--btn-bg); color: var(--btn-text); }
@@ -206,9 +208,10 @@ td input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--accent)
 /* Směna v ploše dne: jemné podbarvení + pruh s iniciálami a jménem hygienistky */
 .cg-shift { position: absolute; left: 0; right: 0; background: color-mix(in srgb, var(--sc) 6%, transparent); pointer-events: none; }
 .cg-shift + .cg-shift, .cg-shift.next { border-top: 2px dashed color-mix(in srgb, var(--sc) 55%, transparent); }
-.cg-band { position: absolute; left: 0; width: 24px; background: color-mix(in srgb, var(--sc) 20%, var(--paper)); border-right: 2px solid var(--sc); pointer-events: none; overflow: hidden; display: flex; flex-direction: column; align-items: center; gap: 6px; padding-top: 4px; }
+.cg-band { position: absolute; left: 0; width: 24px; background: color-mix(in srgb, var(--sc) 20%, var(--paper)); border-right: 2px solid var(--sc); pointer-events: none; overflow: clip; display: flex; flex-direction: column; align-items: center; gap: 6px; padding-top: 4px; }
 .cg-band .av { width: 19px; height: 19px; border-radius: 50%; background: var(--sc); color: var(--paper); font-size: 9px; font-weight: 700; display: grid; place-items: center; flex: none; }
-.cg-band .nm { writing-mode: vertical-rl; transform: rotate(180deg); font-size: 11px; font-weight: 650; color: var(--text); white-space: nowrap; letter-spacing: .02em; }
+.cg-band .av { position: sticky; top: calc(var(--hh, 0px) + 4px); }
+.cg-band .nm { position: sticky; top: calc(var(--hh, 0px) + 30px); writing-mode: vertical-rl; transform: rotate(180deg); font-size: 11px; font-weight: 650; color: var(--text); white-space: nowrap; letter-spacing: .02em; }
 .cal.multi { --evl: 30px; }
 .cg-block { position: absolute; left: var(--evl, 6px); right: 5px; border: 0; border-radius: 8px; background: repeating-linear-gradient(135deg, var(--block) 0 8px, var(--closed) 8px 16px); font-size: 12px; color: var(--muted); padding: 4px 8px; overflow: hidden; cursor: default; font-weight: 650; text-align: left; display: block; }
 .cg-block.sel { box-shadow: 0 0 0 2px var(--text); }
@@ -641,6 +644,7 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
   function load() {
     try { var r = localStorage.getItem(KEY); S = r ? JSON.parse(r) : null; } catch (e) { S = null; } if (!S || !S.staff) S = defaults();
     migrateShifts();
+    if (!S.cutV) { S.blocks.forEach(function (k) { if (!k.cut) cutShifts(k); }); S.cutV = 1; try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
     if (!S.todo) S.todo = todoDefaults(); if (!S.todoDone) S.todoDone = {}; if (!S.todoExtra) S.todoExtra = [];
   }
   function save() { memo = {}; try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
@@ -721,6 +725,33 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
     return [iv[0][0], iv[iv.length - 1][1]];
   }
   function shiftAt(staffId, date, min) { return ownedIntervals(staffId, date).filter(function (h) { return min >= h[0] && min < h[1]; })[0] || null; }
+  // Zavřený slot ořízne směny, které do něj zasahují. Blokace si pamatuje původní směny,
+  // aby se při posunu nebo zrušení slotu daly vrátit (pokud je mezitím nikdo neupravil).
+  function cutShifts(k) {
+    var arr = S.dayShifts[k.date]; if (!arr) return 0;
+    var orig = [], pieces = [], keep = [];
+    arr.forEach(function (x) {
+      if ((k.staff && x.staff !== k.staff) || x.end <= k.start || x.start >= k.end) { keep.push(x); return; }
+      orig.push({ id: x.id, staff: x.staff, start: x.start, end: x.end, note: x.note || '' });
+      [[x.start, Math.min(x.end, k.start)], [Math.max(x.start, k.end), x.end]].forEach(function (r) {
+        if (r[1] - r[0] < 15) return;
+        var pc = { id: ++S.seq, staff: x.staff, start: r[0], end: r[1], note: x.note || '' }; keep.push(pc); pieces.push({ id: pc.id, staff: pc.staff, start: pc.start, end: pc.end });
+      });
+    });
+    if (!orig.length) return 0;
+    S.dayShifts[k.date] = keep; k.cut = { orig: orig, pieces: pieces };
+    return orig.length;
+  }
+  function uncutShifts(k) {
+    var c = k.cut; delete k.cut; if (!c) return;
+    var arr = S.dayShifts[k.date] || [], ids = c.pieces.map(function (pc) { return pc.id; });
+    var intact = c.pieces.every(function (pc) { return arr.some(function (x) { return x.id === pc.id && x.start === pc.start && x.end === pc.end && x.staff === pc.staff; }); });
+    if (!intact) return;
+    var rest = arr.filter(function (x) { return ids.indexOf(x.id) < 0; });
+    if (c.orig.some(function (o) { return rest.some(function (x) { return x.start < o.end && x.end > o.start; }); })) return;
+    S.dayShifts[k.date] = rest.concat(c.orig);
+  }
+  function blkSnap() { var j = JSON.stringify({ b: S.blocks, d: S.dayShifts }); return function () { var o = JSON.parse(j); S.blocks = o.b; S.dayShifts = o.d; }; }
   function dayOff(staffId, date) { return S.blocks.some(function (k) { return k.date === date && k.staff === staffId && k.start === 0 && k.end >= 1440; }); }
   function openIntervals(date, staffId) {
     var iv = [];
@@ -816,6 +847,7 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
     var sc0 = app.querySelector('.cg-scroll'); if (sc0) ui[sc0.dataset.sk || 'calScroll'] = sc0.scrollTop;
     document.getElementById('v-pac').setAttribute('aria-pressed', ui.view === 'pac');
     document.getElementById('v-adm').setAttribute('aria-pressed', ui.view === 'adm');
+    document.body.setAttribute('data-view', ui.view);
     app.innerHTML = ui.view === 'pac' ? renderPac() : renderAdm();
     fitCal();
     var stb = app.querySelector('.tab[aria-selected="true"]');   // vybraná záložka vždy na očích
@@ -829,6 +861,7 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
   function fitCal() {
     var sc = app.querySelector('.cg-scroll'), side = app.querySelector('.cols > .side');
     if (!sc) return;
+    var hd = sc.querySelector('.cg-head'); if (hd) sc.style.setProperty('--hh', isMobile() ? '0px' : hd.offsetHeight + 'px');   // svislá jména u směn zůstanou při posunu vidět
     if (isMobile()) { sc.style.maxHeight = ''; if (side) { side.style.maxHeight = ''; side.classList.remove('fit'); } return; }
     sc.style.maxHeight = Math.max(380, window.innerHeight - sc.getBoundingClientRect().top - 26) + 'px';
     if (side && !side.classList.contains('sheet')) { side.classList.add('fit'); side.style.maxHeight = Math.max(380, window.innerHeight - side.getBoundingClientRect().top - 26) + 'px'; }
@@ -998,7 +1031,10 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
     var lo = 1440, hi = 0;
     week.forEach(function (d) { openIntervals(d).forEach(function (h) { lo = Math.min(lo, h[0]); hi = Math.max(hi, h[1]); }); });
     if (hi <= lo) { lo = 420; hi = 1080; }
-    G.GS = Math.floor(lo / 60) * 60; G.GE = Math.ceil(hi / 60) * 60; G.PX = mob ? 1.5 : dm ? 1.7 : 1.3;
+    G.GS = Math.floor(lo / 60) * 60; G.GE = Math.ceil(hi / 60) * 60;
+    // výška hodiny podle výšky okna – na velké obrazovce je vidět celý den bez posouvání
+    var fitPx = Math.round((window.innerHeight - 330) / (G.GE - G.GS) * 20) / 20;
+    G.PX = mob ? 1.5 : dm ? Math.max(1.7, Math.min(2.4, fitPx)) : Math.max(1.05, Math.min(2, fitPx));
     var cnt = 0, mins = 0, open = 0;
     days.forEach(function (d) {
       S.bookings.forEach(function (b) { if (b.date === d && b.status === 'ok' && (!vf || b.staff === vf)) { cnt++; mins += b.dur; } });
@@ -1060,7 +1096,7 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
       S.blocks.forEach(function (k) {
         if (k.date !== d || (k.staff && vf && k.staff !== vf)) return;
         var a = Math.max(k.start, GS), z = Math.min(k.end, GE); if (z <= a) return;
-        if (k.staff) { var sh2 = shiftFor(k.staff, d); if (!sh2) return; a = Math.max(a, sh2[0]); z = Math.min(z, sh2[1]); if (z <= a) return; }
+        if (k.staff) { var sh2 = shiftFor(k.staff, d); if (sh2) { a = Math.max(a, sh2[0]); z = Math.min(z, sh2[1]); } a = Math.max(a, GS); z = Math.min(z, GE); if (z <= a) return; }
         var mineB = isAdmin() || k.staff === me().id, selB = ui.selBlk === k.id;
         o += '<div class="cg-block' + (mineB ? ' ed' : '') + (selB ? ' sel' : '') + '"' + (mineB ? ' data-blk="' + k.id + '" data-ck="' + d + '" data-s="' + a + '" data-e="' + z + '" role="button" tabindex="0"' : '') + ' style="top:' + ((a - GS) * PX + 1) + 'px;height:' + ((z - a) * PX - 2) + 'px" title="' + esc((k.reason || 'Blokace') + ' · ' + hm(a) + '–' + hm(z)) + (mineB ? ' · přesunete tažením, délku tažením okraje' : '') + '">'
           + (mineB ? '<span class="rz rz-t" data-rz="t" aria-label="Posunout začátek"></span>' : '')
@@ -1282,7 +1318,7 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
   function admShifts() {
     if (!ui.sw) ui.sw = iso(monday(today()));
     var mob = isMobile(), cols = shCols(), td = todayIso();
-    G.GS = SH.GS; G.GE = SH.GE; G.PX = mob ? 1.1 : 0.9;
+    G.GS = SH.GS; G.GE = SH.GE; G.PX = mob ? 1.1 : Math.max(0.9, Math.min(1.6, Math.round((window.innerHeight - 300) / (SH.GE - SH.GS) * 20) / 20));
     if (ui.shDi == null || ui.shDi >= cols.length) ui.shDi = Math.max(0, cols.indexOf(td));
     var vis = mob ? [cols[ui.shDi]] : cols, a = parse(cols[0]), z = parse(cols[6]);
     var title = a.getDate() + '.' + (a.getMonth() !== z.getMonth() ? ' ' + MONTHS_G[a.getMonth()] : '') + ' – ' + z.getDate() + '. ' + MONTHS_G[z.getMonth()] + ' ' + z.getFullYear();
@@ -1603,8 +1639,8 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
       undoFn = u5; ui.shSel = null; save(); render(); return toast('Zkopírováno ' + n5 + ' ' + plural(n5, 'směna', 'směny', 'směn') + ' z minulého týdne', true);
     }
     if (a.delblk) {
-      var gone = byId(S.blocks, +a.delblk); S.blocks = S.blocks.filter(function (k) { return k.id !== +a.delblk; });
-      undoFn = function () { S.blocks.push(gone); ui.selBlk = gone.id; ui.cur = gone.date; };
+      var gone = byId(S.blocks, +a.delblk), sn0 = blkSnap(); uncutShifts(gone); S.blocks = S.blocks.filter(function (k) { return k.id !== +a.delblk; });
+      undoFn = function () { sn0(); ui.selBlk = gone.id; ui.cur = gone.date; };
       closePanel(); save(); render(); return toast('Blokace zrušena', true);
     }
     if (a.blk) { closePanel(); ui.selBlk = +a.blk; ui.blkOpen = true; return render(); }
@@ -1613,9 +1649,12 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
     if (a.kreason) { var kb = byId(S.blocks, ui.selBlk); if (kb) { kb.reason = a.kreason; save(); } return render(); }
     if (a.kspan) {
       var ks = byId(S.blocks, ui.selBlk); if (!ks) return;
-      var old = { start: ks.start, end: ks.end }, shx = shiftAt(ks.staff, ks.date, ks.start) || shiftFor(ks.staff, ks.date) || (openIntervals(ks.date).length ? [openIntervals(ks.date)[0][0], openIntervals(ks.date).slice(-1)[0][1]] : [G.GS, G.GE]);
+      var sn2 = blkSnap(); uncutShifts(ks); memo = {};
+      var ow = S.staff.map(function (x) { return (!ks.staff || x.id === ks.staff) && shiftAt(x.id, ks.date, ks.start); }).filter(Boolean)[0];
+      var shx = ow || shiftFor(ks.staff, ks.date) || (openIntervals(ks.date).length ? [openIntervals(ks.date)[0][0], openIntervals(ks.date).slice(-1)[0][1]] : [G.GS, G.GE]);
       if (a.kspan === 'day') { ks.start = 0; ks.end = 1440; } else { ks.start = shx[0]; ks.end = shx[1]; }
-      undoFn = function () { ks.start = old.start; ks.end = old.end; ui.selBlk = ks.id; ui.blkOpen = true; };
+      cutShifts(ks); memo = {};
+      undoFn = function () { sn2(); ui.selBlk = ks.id; ui.blkOpen = true; };
       save(); render(); return toast(a.kspan === 'day' ? 'Zavřeno na celý den' : 'Zavřeno na celou směnu ' + hm(ks.start) + '–' + hm(ks.end), true);
     }
     if (a.addstaff !== undefined) {
@@ -1649,14 +1688,15 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
   // Rychlé uzavření slotu: 30 minut od místa klepnutí (nebo do příštího termínu)
   function quickBlock() {
     var q = ui.quick; ui.quick = null;
-    var who = !isAdmin() ? me().id : multi() ? q.staff : '';
-    var sh = shiftAt(who || q.staff, q.date, q.min) || shiftFor(who || q.staff, q.date) || [G.GS, G.GE], end = Math.min(q.min + 30, sh[1] > q.min ? sh[1] : q.min + 30);
+    var who = '';   // zavřený slot zavírá křeslo – směna, která do něj zasahuje, se ořízne
+    var sh = shiftAt(q.staff, q.date, q.min) || shiftFor(q.staff, q.date) || [G.GS, G.GE], end = Math.min(q.min + 30, sh[1] > q.min ? sh[1] : q.min + 30);
     S.bookings.forEach(function (b) { if (b.date === q.date && active(b) && (!who || b.staff === who) && b.start > q.min && b.start < end) end = b.start; });
     if (end <= q.min) end = q.min + 15;
-    var id = ++S.seq; S.blocks.push({ id: id, date: q.date, start: q.min, end: end, reason: 'Zavřeno', staff: who });
-    undoFn = function () { S.blocks = S.blocks.filter(function (k) { return k.id !== id; }); };
+    var snap = blkSnap(), id = ++S.seq, nk = { id: id, date: q.date, start: q.min, end: end, reason: 'Zavřeno', staff: who };
+    S.blocks.push(nk); var nc = cutShifts(nk);
+    undoFn = snap;
     closePanel(); ui.selBlk = id; ui.blkOpen = false; save(); render();
-    toast('Zavřeno ' + hm(q.min) + '–' + hm(end) + '. Délku změníte tažením okraje.', true);
+    toast('Zavřeno ' + hm(q.min) + '–' + hm(end) + (nc ? ', směna upravena' : '') + '. Délku změníte tažením okraje.', true);
   }
   function saveNew() {
     var n = ui.newB; ui.err = '';
@@ -1876,9 +1916,10 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
     if (cancel || !changed) return render();
     if (!g.ok) { render(); return toast('Tady by se směny překrývaly – v ordinaci je jedno křeslo'); }
     if (g.blk) {
-      var k = byId(S.blocks, g.id), old = { date: k.date, start: k.start, end: k.end };
+      var k = byId(S.blocks, g.id), sn3 = blkSnap(); uncutShifts(k);
       k.date = g.ck; if (!g.full) { k.start = g.ns; k.end = g.ne; }
-      undoFn = function () { k.date = old.date; k.start = old.start; k.end = old.end; ui.selBlk = k.id; };
+      cutShifts(k);
+      undoFn = function () { sn3(); ui.selBlk = k.id; };
       var cl = S.bookings.some(function (x) { return x.date === k.date && x.status === 'ok' && (!k.staff || x.staff === k.staff) && x.start < k.end && x.start + x.dur > k.start; });
       save(); render();
       return toast('Zavřeno ' + (g.ck !== g.ck0 ? dShort(k.date) + ' ' : '') + (g.full ? 'celý den' : hm(k.start) + '–' + hm(k.end)) + (cl ? ' · pozor, je tam objednaný pacient' : ''), true);
@@ -1894,15 +1935,15 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
     if ((e.key === 'Delete' || e.key === 'Backspace') && ui.view === 'adm' && ui.tab === 'smeny' && ui.shSel && !/^(INPUT|TEXTAREA|SELECT)$/.test((e.target.tagName || ''))) { e.preventDefault(); return shDelete(); }
     if ((e.key === 'Delete' || e.key === 'Backspace') && ui.view === 'adm' && ui.selBlk && !/^(INPUT|TEXTAREA|SELECT)$/.test((e.target.tagName || '')) && !e.target.isContentEditable) {
       var gk = byId(S.blocks, ui.selBlk); if (!gk) return; e.preventDefault();
-      S.blocks = S.blocks.filter(function (k) { return k.id !== gk.id; });
-      undoFn = function () { S.blocks.push(gk); ui.selBlk = gk.id; ui.cur = gk.date; };
+      var sn1 = blkSnap(); uncutShifts(gk); S.blocks = S.blocks.filter(function (k) { return k.id !== gk.id; });
+      undoFn = function () { sn1(); ui.selBlk = gk.id; ui.cur = gk.date; };
       closePanel(); save(); render(); return toast('Slot otevřen (' + (gk.start === 0 && gk.end >= 1440 ? 'celý den' : hm(gk.start) + '–' + hm(gk.end)) + ')', true);
     }
     if (e.key !== 'Escape' || ui.view !== 'adm' || !(ui.sel || ui.newB || ui.selBlk || ui.quick || ui.shSel || ui.shQuick)) return;
     closePanel(); render();
   });
   var lastMob = isMobile(), rT;
-  window.addEventListener('resize', function () { clearTimeout(rT); rT = setTimeout(function () { if (isMobile() !== lastMob) { lastMob = isMobile(); render(); } else fitCal(); }, 150); });
+  window.addEventListener('resize', function () { clearTimeout(rT); rT = setTimeout(function () { if (isMobile() !== lastMob) { lastMob = isMobile(); render(); } else if (ui.view === 'adm' && (ui.tab === 'kal' || ui.tab === 'smeny')) render(); else fitCal(); }, 150); });
   app.addEventListener('scroll', function (e) { if (e.target.classList && e.target.classList.contains('cg-scroll')) ui[e.target.dataset.sk || 'calScroll'] = e.target.scrollTop; }, true);
 
   render();
