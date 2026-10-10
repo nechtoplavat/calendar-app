@@ -533,8 +533,8 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
   function plural(n, a, b, c) { return n === 1 ? a : n >= 2 && n <= 4 ? b : c; }
 
   /* ===================== Výchozí data ===================== */
-  var SMS_RICH = '🦷 ADent.\n\nDobrý den, {jmeno}, potvrzujeme termín:\n\n📅 {datum}, {cas}\n🪥 {sluzba}\n👩‍⚕️ {hygienistka}\n📍 Poliklinika DAM, 2. patro, dv. 207\n\nZrušení 24 h předem: 727 927 890';
-  var SMS_SHORT = 'ADent: termin {datum} v {cas} potvrzen, osetri vas {hygienistka}. Stamicova 1968/21, dv. 207. Zruseni 24 h predem: 727 927 890';
+  var SMS_RICH = '🦷 ADent.\n\nDobrý den, {jmeno}, potvrzujeme termín:\n\n📅 {datum}, {cas}\n🪥 {sluzba}\n📍 Poliklinika DAM, 2. patro, dv. 207\n\nZrušení 24 h předem: 727 927 890';
+  var SMS_SHORT = 'ADent: termin {datum} v {cas} potvrzen. Stamicova 1968/21, dv. 207. Zruseni 24 h predem: 727 927 890';
   var COLORS = ['c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7', 'c8'];
   var COLOR_NAMES = { c1: 'broskvová', c2: 'šalvějová', c3: 'modrá', c4: 'levandulová', c5: 'písková', c6: 'růžová', c7: 'mátová', c8: 'béžová' };
 
@@ -645,9 +645,21 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
     try { var r = localStorage.getItem(KEY); S = r ? JSON.parse(r) : null; } catch (e) { S = null; } if (!S || !S.staff) S = defaults();
     migrateShifts();
     if (!S.cutV) { S.blocks.forEach(function (k) { if (!k.cut) cutShifts(k); }); S.cutV = 1; try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
-    if (!S.todo) S.todo = todoDefaults(); if (!S.todoDone) S.todoDone = {}; if (!S.todoExtra) S.todoExtra = [];
+    if (!S.todo) S.todo = todoDefaults();
+    if (!S.noHyg) {   // pacient už nevidí, kdo ho ošetří – jméno zmizí i ze zpráv
+      ['sms'].forEach(function (k) { S.msg[k] = String(S.msg[k] || '').split('\n').filter(function (l) { return l.indexOf('{hygienistka}') < 0; }).join('\n').replace(/, osetri vas \{hygienistka\}/g, ''); });
+      S.noHyg = 1;
+    }
+    reassign(); if (!S.todoDone) S.todoDone = {}; if (!S.todoExtra) S.todoExtra = [];
   }
-  function save() { memo = {}; try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
+  // Kdo pacienta ošetří, určuje směna v době termínu – budoucí termíny se po každé změně přepočítají
+  function ownerAt(date, t) { var o = S.staff.filter(function (x) { return shiftAt(x.id, date, t); })[0]; return o ? o.id : defStaff(); }
+  function reassign() {
+    var td = todayIso();
+    S.bookings.forEach(function (b) { if (b.date >= td && b.status === 'ok') b.staff = ownerAt(b.date, b.start); });
+    memo = {};
+  }
+  function save() { memo = {}; reassign(); try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
   // Mezipaměť výpočtů (volné časy, směny); maže se při každé změně dat a před každým překreslením
   var memo = {};
   function dayIdx() {
@@ -774,10 +786,15 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
     return (memo[key] = slotsCalc(date, dur, ignoreId, staffId));
   }
   function slotsCalc(date, dur, ignoreId, staffId) {
-    if (!staffId) {
-      var all = {};
-      S.staff.forEach(function (x) { slots(date, dur, ignoreId, x.id).forEach(function (t) { all[t] = 1; }); });
-      return Object.keys(all).map(Number).sort(function (a, b) { return a - b; });
+    if (!staffId) {   // kdokoli – rozhoduje jen volné křeslo a otevřený čas
+      var res = [], bzs = {};
+      openIntervals(date).forEach(function (h) {
+        for (var t = h[0]; t + dur <= h[1]; t += S.step) {
+          var ow = ownerAt(date, t), bz = bzs[ow] || (bzs[ow] = busy(date, ignoreId, ow));
+          if (bz.every(function (x) { return t + dur <= x[0] || t >= x[1]; })) res.push(t);
+        }
+      });
+      return res;
     }
     var bz = busy(date, ignoreId, staffId), out = [];
     staffShifts(staffId, date).forEach(function (h) {
@@ -905,13 +922,13 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
   function chosenBar(withTime) {
     var s = svc(ui.svc), pct = withTime ? lmPct(ui.date, ui.time) : 0;
     return '<div class="chosen"><span><b>' + esc(s.name) + '</b> <span class="muted">· ' + s.dur + ' min · </span>' + priceLine(s.price, pct)
-      + (withTime ? '<br>' + esc(dLong(ui.date)) + ' v ' + hm(ui.time) + (multi() && ui.tstaff ? ' · ošetří vás ' + esc(staffName(ui.tstaff)) : '') : '') + '</span>'
+      + (withTime ? '<br>' + esc(dLong(ui.date)) + ' v ' + hm(ui.time)  : '') + '</span>'
       + '<button type="button" class="link" data-go="' + (withTime ? 2 : 1) + '">Změnit</button></div>';
   }
   function freeFor(date, dur) {
     var all = [];
-    S.staff.forEach(function (x) { if (!ui.pstaff || ui.pstaff === x.id) slots(date, dur, null, x.id).forEach(function (t) { all.push({ t: t, st: x.id }); }); });
-    return all.sort(function (a, b) { return a.t - b.t; });
+    slots(date, dur, null).forEach(function (t) { all.push({ t: t, st: ownerAt(date, t) }); });
+    return all;
   }
   function quickSlots(s) {
     var out = [], d = minDate(), mx = maxDate();
@@ -924,7 +941,7 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
     return '<p class="sub" style="margin-top:18px">Nejbližší volné termíny</p><div class="qgrid">' + out.map(function (x) {
       var pc = lmPct(x.ds, x.t);
       return '<button type="button" data-quick="' + x.ds + '|' + x.t + '|' + x.st + '"><span class="d">' + esc(cap(dLong(x.ds))) + '</span><b>' + hm(x.t) + '</b>'
-        + (multi() ? '<span class="w">' + esc(staffName(x.st)) + '</span>' : '') + (pc ? '<span class="w" style="color:var(--good);font-weight:650">' + money(discounted(s.price, pc)) + ' (−' + pc + ' %)</span>' : '') + '</button>';
+        + (pc ? '<span class="w" style="color:var(--good);font-weight:650">' + money(discounted(s.price, pc)) + ' (−' + pc + ' %)</span>' : '') + '</button>';
     }).join('') + '</div>';
   }
   function pacDate() {
@@ -933,10 +950,6 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
     var m0 = parse(ui.month), first = new Date(m0.getFullYear(), m0.getMonth(), 1), last = new Date(m0.getFullYear(), m0.getMonth() + 1, 0);
     var canPrev = first > mn, canNext = new Date(m0.getFullYear(), m0.getMonth() + 1, 1) <= mx;
     var o = '<section class="panel">' + chosenBar(false);
-    if (multi()) {
-      o += '<p class="sub">Kdo vás ošetří?</p><div class="who" role="group" aria-label="Hygienistka">'
-        + [['', 'Je mi to jedno']].concat(S.staff.map(function (x) { return [x.id, x.name]; })).map(function (c) { return '<button type="button" class="chip" data-pstaff="' + c[0] + '" aria-pressed="' + (ui.pstaff === c[0]) + '">' + esc(c[1]) + '</button>'; }).join('') + '</div>';
-    }
     o += quickSlots(s) + '<div class="or">nebo si vyberte den</div>'
       + '<div class="mcal-head"><button type="button" class="ib" data-mon="-1"' + (canPrev ? '' : ' disabled') + ' aria-label="Předchozí měsíc">‹</button>'
       + '<h3 style="display:flex;align-items:center;gap:8px">' + m0.toLocaleDateString('cs-CZ', { month: 'long', year: 'numeric' }) + info('<p>Objednat se můžete nejdříve na zítřek a nejpozději ' + dNum(iso(mx)) + '.</p>' + (S.lm.on ? '<p>Termíny v příštích ' + S.lm.hours + ' hodinách jsou o ' + S.lm.pct + ' % levnější (označené zeleně).</p>' : '')) + '</h3>'
@@ -958,8 +971,8 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
         var list = ui.allSlots ? p[1] : p[1].slice(0, 9);
         o += '<p class="hint" style="margin:8px 0 6px;font-weight:650">' + p[0] + '</p><div class="slots">' + list.map(function (x) {
           var pc = lmPct(ui.date, x.t);
-          return '<button type="button" data-time="' + x.t + '" data-tst="' + x.st + '" aria-label="' + hm(x.t) + (multi() ? ', ošetří ' + esc(staffName(x.st)) : '') + '"><b>' + hm(x.t) + '</b>'
-            + (multi() ? '<small>' + esc(surname(x.st)) + '</small>' : '') + (pc ? '<span class="lmx">' + money(discounted(s.price, pc)) + '</span>' : '') + '</button>';
+          return '<button type="button" data-time="' + x.t + '" data-tst="' + x.st + '" aria-label="' + hm(x.t) + '"><b>' + hm(x.t) + '</b>'
+            + (pc ? '<span class="lmx">' + money(discounted(s.price, pc)) + '</span>' : '') + '</button>';
         }).join('') + '</div>' + (!ui.allSlots && p[1].length > 9 ? '<button type="button" class="link" data-allslots style="margin-top:8px">Zobrazit další časy (' + (p[1].length - 9) + ')</button>' : '');
       });
       o += '</div>';
@@ -983,7 +996,7 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
     return '<div class="mail"><div class="hdr"><span>Od: ADent. Dentální hygiena &lt;info@adentdh.cz&gt;</span><span>Komu: ' + esc(b.email) + '</span><span>Předmět: <b>Potvrzení rezervace – ' + esc(dLong(b.date)) + ' v ' + hm(b.start) + '</b></span></div>'
       + esc(fill(S.msg.intro, b)).split('\n').map(function (l) { return '<p>' + l + '</p>'; }).join('')
       + '<dl class="dl"><dt>Kdy</dt><dd>' + esc(dLong(b.date)) + ', ' + hm(b.start) + '–' + hm(b.start + b.dur) + '</dd>'
-      + '<dt>Služba</dt><dd>' + esc(s.name) + '</dd>' + (multi() ? '<dt>Ošetří vás</dt><dd>' + esc(staffName(b.staff)) + '</dd>' : '')
+      + '<dt>Služba</dt><dd>' + esc(s.name) + '</dd>' 
       + '<dt>Cena</dt><dd>' + (b.disc ? priceLine(s.price, b.disc) : money(b.price)) + '</dd>'
       + '<dt>Kde</dt><dd>Poliklinika DAM, Stamicova 1968/21, Praha 6 – 2. patro, dveře 207</dd></dl>'
       + (info ? '<p><b>' + esc(info) + '</b></p>' : '')
@@ -995,7 +1008,6 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
     if (!b) { ui.step = 1; return pacSvc(); }
     if (b.status === 'cancelled') return '<section class="panel stack"><h2>Termín je zrušený</h2><p>Termín ' + esc(dLong(b.date)) + ' v ' + hm(b.start) + ' jsme uvolnili pro ostatní.</p><div><button type="button" class="btn" data-new>Vybrat nový termín</button></div></section>';
     return '<section class="panel stack"><div><span class="ok-badge">✓ Rezervace potvrzena</span></div><h2>Těšíme se na vás ' + esc(dLong(b.date)) + ' v ' + hm(b.start) + '</h2>'
-      + (multi() ? '<p>Ošetří vás <b>' + esc(staffName(b.staff)) + '</b>.</p>' : '')
       + '<p class="hint">Na ' + esc(b.email) + ' jsme poslali potvrzení' + (S.msg.smsOn ? ' a na ' + esc(b.phone) + ' SMS' : '') + '. Takhle zprávy vypadají:</p>' + mailHtml(b)
       + (S.msg.smsOn ? '<p class="hint">SMS na ' + esc(b.phone) + ':</p><div class="sms">' + esc(smsText(S.msg.sms, b)) + '</div>' : '')
       + '<div class="row"><button type="button" class="btn" data-goadm>Podívat se do ordinace</button><button type="button" class="btn ghost" data-new>Nová rezervace</button></div></section>';
@@ -1034,7 +1046,7 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
     G.GS = Math.floor(lo / 60) * 60; G.GE = Math.ceil(hi / 60) * 60;
     // výška hodiny podle výšky okna – na velké obrazovce je vidět celý den bez posouvání
     var fitPx = Math.round((window.innerHeight - 330) / (G.GE - G.GS) * 20) / 20;
-    G.PX = mob ? 1.5 : dm ? Math.max(1.7, Math.min(2.4, fitPx)) : Math.max(1.05, Math.min(2, fitPx));
+    G.PX = mob ? 1.5 : dm ? Math.max(1.7, Math.min(2.4, fitPx)) : Math.max(1.3, Math.min(2, fitPx));
     var cnt = 0, mins = 0, open = 0;
     days.forEach(function (d) {
       S.bookings.forEach(function (b) { if (b.date === d && b.status === 'ok' && (!vf || b.staff === vf)) { cnt++; mins += b.dur; } });
@@ -1065,16 +1077,16 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
   function calInfo(vf) {
     return info('<p><b>Ovládání</b><br>Klepnutím na termín otevřete detail. Klepnutím do volného místa přidáte termín nebo zavřete slot. Termín i zavřený slot přesunete přetažením myší (na mobilu zavřený slot nejdřív klepnutím vyberte), délku slotu změníte tažením okraje. Kalendář posouváte kolečkem.</p>'
       + '<div class="legend">' + S.services.map(function (x) { return '<span><i style="background:' + col(x) + '"></i>' + esc(x.name) + '</span>'; }).join('')
-      + (multi() && !vf ? S.staff.map(function (x) { return '<span><i style="background:' + staffCol(x.id) + ';border-radius:50%"></i>ošetřuje ' + esc(x.name) + ' (pruh u okraje dne)</span>'; }).join('') + '<span>čas bez směny: ' + esc(staffName(defStaff())) + '</span>' : '')
+      + (multi() && !vf ? S.staff.map(function (x) { return '<span><i style="background:' + staffCol(x.id) + ';border-radius:50%"></i>směna ' + esc(x.name) + ' (pruh u okraje dne)</span>'; }).join('')  : '')
       + '<span><i style="background:var(--accent);width:8px;height:8px;border-radius:50%"></i>objednáno přes web</span><span><i style="background:repeating-linear-gradient(135deg,var(--block) 0 4px,var(--closed) 4px 8px)"></i>volno / blokace</span></div>', 'Nápověda a barvy');
   }
   function grid(days, vf, dm) {
     var GS = G.GS, GE = G.GE, PX = G.PX, H = (GE - GS) * PX, td = todayIso();
     var o = '<div class="cal' + (multi() ? ' multi' : '') + '" style="--cols:' + days.length + '"><div class="cg-scroll"><div class="cg-row cg-head"><div></div>';
     days.forEach(function (d) {
-      var x = parse(d), sh = ownersOn(d).filter(function (z) { return (!vf || z.staff === vf) && !dayOff(z.staff, d); });
+      var x = parse(d), sh = shiftsOn(d).filter(function (z) { return (!vf || z.staff === vf) && !dayOff(z.staff, d); });
       o += '<button type="button" class="cg-day' + (d === td ? ' today' : '') + (dm ? ' static' : '') + '"' + (dm ? ' tabindex="-1"' : ' data-openday="' + d + '" title="Otevřít den"') + '><span class="dw">' + (dm ? DAYS[x.getDay()] : DS[x.getDay()]) + '</span><span class="dd">' + x.getDate() + '</span>'
-        + '<span class="sh">' + (sh.length ? sh.map(function (z) { var s = staff(z.staff); return multi() ? '<span class="shp" style="--sc:' + staffCol(s.id) + '"><b>' + esc(s.short) + '</b>' + (dm ? esc(s.name) + ' ' : '') + hh(z.start) + '–' + hh(z.end) + '</span>' : '<span>' + hh(z.start) + '–' + hh(z.end) + '</span>'; }).join('') : '<span>zavřeno</span>') + '</span></button>';
+        + '<span class="sh">' + (sh.length ? sh.map(function (z) { var s = staff(z.staff); return multi() ? '<span class="shp" style="--sc:' + staffCol(s.id) + '"><b>' + esc(s.short) + '</b>' + (dm ? esc(s.name) + ' ' : '') + hh(z.start) + '–' + hh(z.end) + '</span>' : '<span>' + hh(z.start) + '–' + hh(z.end) + '</span>'; }).join('') : openIntervals(d).length ? '' : '<span>zavřeno</span>') + '</span></button>';
     });
     o += '</div><div class="cg-row cg-body"><div class="cg-times" style="height:' + H + 'px">';
     o += '<span style="top:0;transform:translateY(4px)">' + hm(GS) + '</span>';
@@ -1088,7 +1100,7 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
         var a = Math.max(h[0], GS); if (a > cur) o += '<div class="cg-closed" style="top:' + (cur - GS) * PX + 'px;height:' + (a - cur) * PX + 'px"></div>';
         cur = Math.max(cur, Math.min(h[1], GE));
       });
-      if (multi()) ownersOn(d).filter(function (z0) { return (!vf || z0.staff === vf) && !dayOff(z0.staff, d); }).forEach(function (z0, i) {
+      if (multi()) shiftsOn(d).filter(function (z0) { return (!vf || z0.staff === vf) && !dayOff(z0.staff, d); }).forEach(function (z0, i) {
         var s = staff(z0.staff), h = [z0.start, z0.end], a = Math.max(h[0], GS), z = Math.min(h[1], GE); if (z <= a) return;
         var pos = 'top:' + (a - GS) * PX + 'px;height:' + (z - a) * PX + 'px;--sc:' + staffCol(s.id);
         o += '<div class="cg-shift' + (i ? ' next' : '') + '" style="' + pos + '"></div><div class="cg-band" style="' + pos + '" title="Směna: ' + esc(s.name) + ' ' + hm(h[0]) + '–' + hm(h[1]) + '"><span class="av">' + esc(s.short) + '</span>' + ((z - a) * PX > 90 ? '<span class="nm">' + esc(surname(s.id)) + '</span>' : '') + '</div>';
@@ -1166,13 +1178,14 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
   }
   function todoKey(d, sid) { return d + '|' + sid; }
   function todoPanel(d, vf) {
-    var who = S.staff.filter(function (x) { return (!vf || x.id === vf) && shiftFor(x.id, d) && !dayOff(x.id, d); });
+    var who = S.staff.filter(function (x) { return (!vf || x.id === vf) && shiftsOn(d).some(function (z) { return z.staff === x.id; }) && !dayOff(x.id, d); });
+    if (!who.length && S.bookings.some(function (b) { return b.date === d && b.status === 'ok'; })) who = [staff(defStaff())].filter(function (x) { return !vf || x.id === vf; });
     if (!isAdmin()) who = who.filter(function (x) { return x.id === me().id; });
     if (!who.length) return '';
     var o = '<section class="panel todo" style="margin-top:14px"><div class="panel-h" style="margin-bottom:0"><h2 style="font-size:19px">To-do ' + (d === todayIso() ? 'na dnes' : esc(dShort(d))) + '</h2>' + info('Co je potřeba udělat před směnou a po ní. Odškrtnutí platí jen pro tento den a tuto hygienistku. Seznam úkolů upravuje správkyně v Nastavení. Jednorázový úkol (např. „objednat rukavice“) přidáte dole.') + '</div>';
     who.forEach(function (x) {
-      var key = todoKey(d, x.id), done = S.todoDone[key] || [], sh = shiftFor(x.id, d);
-      if (who.length > 1 || isAdmin()) o += '<div class="who"><span class="avatar" style="background:' + staffCol(x.id) + '">' + esc(x.short) + '</span>' + esc(x.name) + ' <span class="hint" style="font-weight:400">' + hm(sh[0]) + '–' + hm(sh[1]) + '</span></div>';
+      var key = todoKey(d, x.id), done = S.todoDone[key] || [], shl = shiftsOn(d).filter(function (z) { return z.staff === x.id; });
+      if (who.length > 1 || isAdmin()) o += '<div class="who"><span class="avatar" style="background:' + staffCol(x.id) + '">' + esc(x.short) + '</span>' + esc(x.name) + ' <span class="hint" style="font-weight:400">' + (shl.length ? shl.map(function (z) { return hm(z.start) + '–' + hm(z.end); }).join(', ') : 'bez směny') + '</span></div>';
       var extra = S.todoExtra.filter(function (e) { return e.date === d && e.staff === x.id; });
       [['before', 'Před směnou'], ['after', 'Po směně'], ['extra', 'Navíc dnes']].forEach(function (g) {
         var items = g[0] === 'extra' ? extra.map(function (e) { return { id: 'x' + e.id, text: e.text, x: e.id }; }) : S.todo[g[0]];
@@ -1215,14 +1228,14 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
   }
   function moveForm(b) {
     var m = ui.mv && ui.mv.id === b.id ? ui.mv : (ui.mv = { id: b.id, date: b.date, start: b.start, svc: b.svc, staff: b.staff, notify: true, drag: false });
-    var s = svc(m.svc), sl = slots(m.date, s.dur, b.id, m.staff);
+    var s = svc(m.svc), sl = slots(m.date, s.dur, b.id, isAdmin() ? undefined : m.staff);
     if (sl.indexOf(m.start) < 0) m.start = sl.length ? sl.reduce(function (a, t) { return Math.abs(t - m.start) < Math.abs(a - m.start) ? t : a; }, sl[0]) : null;
     var changed = m.date !== b.date || m.start !== b.start || m.svc !== b.svc || m.staff !== b.staff;
     return '<div class="sec"><div class="sec-h"><h4>Přesunout termín</h4><button type="button" class="link" data-closemove>Zavřít</button></div>'
       + (m.drag && changed ? '<div class="pend">Termín jste přetáhli myší. Zkontrolujte nový čas a potvrďte.</div>' : '')
       + dayChips('mdate', m.date, m.staff) + timeChips('mtime', sl, m.start)
       + '<form class="form" id="mf" novalidate style="gap:10px">'
-      + (isAdmin() && multi() ? '<label class="field" for="m-staff">Hygienistka<select id="m-staff">' + S.staff.map(function (x) { return '<option value="' + x.id + '"' + (x.id === m.staff ? ' selected' : '') + '>' + esc(x.name) + '</option>'; }).join('') + '</select></label>' : '')
+      + (multi() && m.start != null ? '<p class="hint">Ošetří: <b>' + esc(staffName(ownerAt(m.date, m.start))) + '</b> (podle směny)</p>' : '')
       + '<label class="field" for="m-svc">Služba<select id="m-svc">' + S.services.map(function (x) { return '<option value="' + x.id + '"' + (x.id === m.svc ? ' selected' : '') + '>' + esc(x.name) + ' (' + x.dur + ' min)</option>'; }).join('') + '</select></label>'
       + '<label class="check" for="m-notify"><input type="checkbox" id="m-notify" name="notify"' + (m.notify ? ' checked' : '') + '><span>Poslat pacientovi zprávu o změně</span></label>'
       + '<button class="btn block" type="submit"' + (changed && m.start != null ? '' : ' disabled') + '>' + (changed && m.start != null ? 'Přesunout na ' + esc(dShort(m.date)) + ' ' + hm(m.start) : 'Vyberte nový čas') + '</button></form></div>';
@@ -1252,7 +1265,7 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
       + '<button type="button" class="new" data-newp><b>+ Nový pacient</b><small>' + (hits.length ? 'nikdo z nalezených to není' : 'zatím ho nemáme v seznamu') + '</small></button>';
   }
   function newForm() {
-    var n = ui.newB, s = svc(n.svc), sl = slots(n.date, s.dur, null, n.staff).filter(function (t) { return n.date !== todayIso() || t > nowMin(); });
+    var n = ui.newB, s = svc(n.svc), sl = slots(n.date, s.dur, null, isAdmin() ? undefined : me().id).filter(function (t) { return n.date !== todayIso() || t > nowMin(); });
     if (sl.indexOf(n.start) < 0) n.start = sl.length ? sl.reduce(function (a, t) { return Math.abs(t - n.want) < Math.abs(a - n.want) ? t : a; }, sl[0]) : null;
     var o = '<section class="panel"><div class="dhead nf-head" style="margin-bottom:14px"><div><h3>Nový termín</h3></div><button type="button" class="x" data-close aria-label="Zavřít">×</button></div><div class="form">';
     if (n.picked) {
@@ -1266,8 +1279,8 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
       o += '<label class="field" for="n-q">Pacient<input id="n-q" autocomplete="off" placeholder="Hledat jméno nebo telefon" value="' + esc(n.q) + '"></label><div class="sug" id="n-sug">' + sugHtml(n.q) + '</div>';
     }
     o += '<label class="field" for="n-svc">Služba<select id="n-svc">' + S.services.map(function (x) { return '<option value="' + x.id + '"' + (x.id === n.svc ? ' selected' : '') + '>' + esc(x.name) + ' (' + x.dur + ' min)</option>'; }).join('') + '</select></label>'
-      + (isAdmin() && multi() ? '<label class="field" for="n-staff">Hygienistka<select id="n-staff">' + S.staff.map(function (x) { return '<option value="' + x.id + '"' + (x.id === n.staff ? ' selected' : '') + '>' + esc(x.name) + '</option>'; }).join('') + '</select></label>' : '')
-      + dayChips('ndate', n.date, n.staff) + timeChips('ntime', sl, n.start)
+      + (multi() && n.start != null && sl.length ? '<p class="hint">Ošetří: <b>' + esc(staffName(ownerAt(n.date, n.start))) + '</b> (podle směny)</p>' : '')
+      + dayChips('ndate', n.date, isAdmin() ? undefined : me().id) + timeChips('ntime', sl, n.start)
       + (n.start != null && sl.length ? '<p class="nprice">Cena: ' + priceLine(s.price, lmPct(n.date, n.start)) + (lmPct(n.date, n.start) ? ' <span class="hint">last minute</span>' : '') + '</p>' : '')
       + '<label class="field" for="n-inote">Interní poznámka <span class="hint">nepovinné</span><textarea id="n-inote" data-nb="inote" rows="2">' + esc(n.inote) + '</textarea></label>'
       + (ui.err ? '<p class="err" role="alert">' + esc(ui.err) + '</p>' : '')
@@ -1326,12 +1339,12 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
     var o = '<div class="cols"><div style="min-width:0">'
       + '<div class="cal-bar"><div class="cal-nav"><button type="button" class="ib" data-sw="-1" aria-label="Předchozí týden">‹</button><button type="button" class="btn ghost sm" data-sw="0">Tento týden</button><button type="button" class="ib" data-sw="1" aria-label="Další týden">›</button><h2 class="cal-title">' + esc(title) + '</h2></div>'
       + '<div class="cal-tools"><button type="button" class="btn ghost sm" data-shcopy>Zkopírovat minulý týden</button>'
-      + info('<p><b>Přidání:</b> klepněte do prázdného místa a vyberte, kdo bude mít směnu.</p><p><b>Úpravy:</b> směnu přesunete tažením (i do jiného dne), délku změníte tažením horního nebo spodního okraje. Na mobilu směnu nejdřív klepnutím vyberte. Vybranou směnu smažete klávesou Delete.</p><p><b>Bez směny:</b> ordinace je otevřená celý den a čas bez směny patří hygienistce <b>' + esc(staffName(defStaff())) + '</b> (změníte v Nastavení). Zavřít čas jde jen v Kalendáři.</p><p>V ordinaci je jedno křeslo, proto se směny nesmí překrývat. Tenké proužky u pravého okraje jsou objednaní pacienti, šrafované pole zavřený čas z kalendáře.</p>', 'Jak upravovat směny') + '</div></div>';
+      + info('<p><b>Přidání:</b> klepněte do prázdného místa a vyberte, kdo bude mít směnu.</p><p><b>Úpravy:</b> směnu přesunete tažením (i do jiného dne), délku změníte tažením horního nebo spodního okraje. Na mobilu směnu nejdřív klepnutím vyberte. Vybranou směnu smažete klávesou Delete.</p><p><b>Bez směny:</b> den je v kalendáři volný a bez jména. Pacient se může objednat; kdo ho ošetří, určí směna, kterou na ten čas později zadáte. Zavřít čas jde jen v Kalendáři.</p><p>V ordinaci je jedno křeslo, proto se směny nesmí překrývat. Tenké proužky u pravého okraje jsou objednaní pacienti, šrafované pole zavřený čas z kalendáře.</p>', 'Jak upravovat směny') + '</div></div>';
     if (mob) o += '<div class="dstrip" role="group" aria-label="Den" style="--n:' + cols.length + '">' + cols.map(function (ck, i) {
       var it = shItems(ck);
       return '<button type="button" data-shdi="' + i + '" aria-pressed="' + (i === ui.shDi) + '"' + (ck === td ? ' class="today"' : '') + '>' + DS[ckDow(ck)] + '<b>' + parse(ck).getDate() + '</b><span class="n">' + (it.length ? it.map(function (x) { return esc(staff(x.staff).short); }).join(' ') : '–') + '</span></button>';
     }).join('') + '</div>';
-    o += '<div class="cal-sub"><span class="hint">Čas bez směny ošetřuje <b>' + esc(staffName(defStaff())) + '</b>.</span></div>'
+    o += '<div class="cal-sub"><span class="hint">Pacienti se přiřadí hygienistce podle směny v době termínu.</span></div>'
       + shGrid(vis)
       + '</div><aside class="side' + (sheet ? ' sheet' : '') + '">' + (sheet ? '<div class="sheet-bar"><span>Směna</span><button type="button" class="btn ghost sm" data-close>Zavřít</button></div>' : '') + (ui.shSel && (!mob || ui.shOpen) ? shDetail(cols) : shSummary(cols)) + '</aside>'
       + (sheet ? '<div class="backdrop" data-close></div>' : '') + '</div>';
@@ -1387,8 +1400,6 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
       return '<div><span class="avatar" style="background:' + staffCol(s.id) + '">' + esc(s.short) + '</span><span><b>' + esc(s.name) + '</b><span class="hint">' + n + ' ' + plural(n, 'směna', 'směny', 'směn') + ' · ' + hh(m) + ' h</span></span></div>';
     }).join('');
     var o = '<section class="panel"><div class="panel-h"><h2 style="font-size:19px">Tento týden</h2></div><div class="wsum one">' + rows + '</div>';
-    var out = shOutside(cols);
-    if (out.length) o += '<div class="warn" style="margin-top:12px"><b>Pacienti mimo směnu (' + out.length + ')</b><br>' + out.map(function (b) { return esc(dShort(b.date)) + ' ' + hm(b.start) + ' · ' + esc(b.name) + (multi() ? ' · ' + esc(surname(b.staff)) : ''); }).join('<br>') + '<br>V tu dobu má směnu jiná hygienistka. Upravte směnu, nebo pacienta předejte v kalendáři.</div>';
     o += '<button type="button" class="btn ghost block" data-addstaff style="margin-top:8px">+ Přidat hygienistku do týmu</button>';
     return o + '<p class="hint" style="margin-top:14px">Klepněte do prázdného místa v rozpisu a přidejte směnu. Směny přesouváte a prodlužujete tažením.</p></section>';
   }
@@ -1488,14 +1499,14 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
   }
   function admSettings() {
     return '<div class="page">'
-      + '<section class="panel" id="team"><div class="panel-h"><h2>Tým – hygienistky</h2><span class="row" style="gap:8px;flex-wrap:nowrap">' + (ui.addStaff ? '' : '<button type="button" class="btn sm" data-addstaff>+ Přidat hygienistku</button>') + info('Každá hygienistka má vlastní přihlášení a vidí jen své pacienty. Kdo kdy ordinuje, se nastavuje v záložce Směny. Osobní odkaz otevře rezervaci rovnou u dané hygienistky.') + '</span></div>' + addStaffForm() + '<div class="tbl-wrap"><table><thead><tr><th>Jméno</th><th>Zkratka</th><th>Přihlašovací e-mail</th><th>Role</th><th>Odvod ordinaci</th><th>Barva v kalendáři</th><th>Osobní odkaz na rezervace</th><th></th></tr></thead><tbody>'
-      + S.staff.map(function (x, i) { return '<tr><td><input data-st="' + i + '" data-f="name" value="' + esc(x.name) + '" aria-label="Jméno" style="min-width:160px"></td><td><input data-st="' + i + '" data-f="short" value="' + esc(x.short) + '" maxlength="3" aria-label="Zkratka" style="width:64px"></td><td><input type="email" data-st="' + i + '" data-f="login" value="' + esc(x.login) + '" aria-label="Přihlašovací e-mail" style="min-width:180px"></td><td>' + (x.role === 'admin' ? '<span class="pill good">Správkyně</span>' : '<span class="pill">Hygienistka</span>') + '</td><td class="num">' + (x.role === 'admin' ? '<span class="muted">majitelka</span>' : '<input type="number" min="0" max="100" step="5" data-st="' + i + '" data-f="share" value="' + (x.share == null ? '' : x.share) + '" aria-label="Odvod v procentech" style="width:72px"> %') + '</td><td><div class="sw" role="group" aria-label="Barva">' + STAFF_COLORS.map(function (c) { return '<button type="button" data-stcol="' + i + ':' + c + '" aria-pressed="' + (x.color === c) + '" aria-label="Barva ' + c + '" style="background:var(--' + c + ')"></button>'; }).join('') + '</div></td><td class="hint">adentdh.com/rezervace?k=' + esc(x.id) + '</td><td>' + (x.role === 'admin' ? '' : '<button type="button" class="btn ghost sm" data-delstaff="' + esc(x.id) + '" style="color:var(--bad)">Odebrat</button>') + '</td></tr>'; }).join('')
+      + '<section class="panel" id="team"><div class="panel-h"><h2>Tým – hygienistky</h2><span class="row" style="gap:8px;flex-wrap:nowrap">' + (ui.addStaff ? '' : '<button type="button" class="btn sm" data-addstaff>+ Přidat hygienistku</button>') + info('Každá hygienistka má vlastní přihlášení a vidí jen své pacienty. Kdo kdy ordinuje, se nastavuje v záložce Směny. Osobní odkaz otevře rezervaci rovnou u dané hygienistky.') + '</span></div>' + addStaffForm() + '<div class="tbl-wrap"><table><thead><tr><th>Jméno</th><th>Zkratka</th><th>Přihlašovací e-mail</th><th>Role</th><th>Odvod ordinaci</th><th>Barva v kalendáři</th><th></th></tr></thead><tbody>'
+      + S.staff.map(function (x, i) { return '<tr><td><input data-st="' + i + '" data-f="name" value="' + esc(x.name) + '" aria-label="Jméno" style="min-width:160px"></td><td><input data-st="' + i + '" data-f="short" value="' + esc(x.short) + '" maxlength="3" aria-label="Zkratka" style="width:64px"></td><td><input type="email" data-st="' + i + '" data-f="login" value="' + esc(x.login) + '" aria-label="Přihlašovací e-mail" style="min-width:180px"></td><td>' + (x.role === 'admin' ? '<span class="pill good">Správkyně</span>' : '<span class="pill">Hygienistka</span>') + '</td><td class="num">' + (x.role === 'admin' ? '<span class="muted">majitelka</span>' : '<input type="number" min="0" max="100" step="5" data-st="' + i + '" data-f="share" value="' + (x.share == null ? '' : x.share) + '" aria-label="Odvod v procentech" style="width:72px"> %') + '</td><td><div class="sw" role="group" aria-label="Barva">' + STAFF_COLORS.map(function (c) { return '<button type="button" data-stcol="' + i + ':' + c + '" aria-pressed="' + (x.color === c) + '" aria-label="Barva ' + c + '" style="background:var(--' + c + ')"></button>'; }).join('') + '</div></td><td>' + (x.role === 'admin' ? '' : '<button type="button" class="btn ghost sm" data-delstaff="' + esc(x.id) + '" style="color:var(--bad)">Odebrat</button>') + '</td></tr>'; }).join('')
       + '</tbody></table></div></section>'
       + '<section class="panel"><div class="panel-h"><h2>Objednávání přes web</h2></div><div class="two">'
       + '<label class="field" for="s-h">Jak dlouho dopředu se lze objednat<select id="s-h">' + [1, 2, 3, 4, 6, 12].map(function (m) { return '<option value="' + m + '"' + (m === S.horizonMonths ? ' selected' : '') + '>' + m + ' ' + plural(m, 'měsíc', 'měsíce', 'měsíců') + '</option>'; }).join('') + '</select></label>'
       + '<label class="field" for="s-w0">Kalendář otevřen od<input type="time" step="900" id="s-w0" value="' + hm(S.win[0]).padStart(5, '0') + '"></label>'
       + '<label class="field" for="s-w1">do<input type="time" step="900" id="s-w1" value="' + hm(S.win[1]).padStart(5, '0') + '"></label>'
-      + '<label class="field" for="s-def">Čas bez směny ošetřuje<select id="s-def">' + S.staff.map(function (x) { return '<option value="' + x.id + '"' + (x.id === defStaff() ? ' selected' : '') + '>' + esc(x.name) + '</option>'; }).join('') + '</select></label>'
+      + '<label class="field" for="s-def">Termíny mimo směny (pro vyúčtování) patří<select id="s-def">' + S.staff.map(function (x) { return '<option value="' + x.id + '"' + (x.id === defStaff() ? ' selected' : '') + '>' + esc(x.name) + '</option>'; }).join('') + '</select></label>'
       + '<label class="field" for="s-st">Začátky termínů po<select id="s-st">' + [10, 15, 30].map(function (m) { return '<option value="' + m + '"' + (m === S.step ? ' selected' : '') + '>' + m + ' minutách</option>'; }).join('') + '</select></label></div></section>'
       + '<section class="panel"><div class="panel-h"><h2>To-do před směnou a po směně</h2>' + info('Hygienistky uvidí seznam v kalendáři pod přehledem dne a odškrtávají ho každý den znovu. Změna textu se uloží po opuštění pole.') + '</div><div class="two">'
       + [['before', 'Před směnou'], ['after', 'Po směně']].map(function (g) { return '<div><p class="lbl" style="margin-bottom:8px">' + g[1] + '</p><div class="tdl">' + S.todo[g[0]].map(function (it, i) { return '<div class="row"><input data-tdi="' + g[0] + ':' + i + '" value="' + esc(it.text) + '" aria-label="Úkol"><button type="button" class="x" data-tdrm="' + g[0] + ':' + i + '" aria-label="Odebrat úkol">×</button></div>'; }).join('') + '</div><button type="button" class="btn ghost sm" data-tdadd="' + g[0] + '" style="margin-top:8px">+ Přidat úkol</button></div>'; }).join('')
@@ -1507,7 +1518,7 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
       + '<label class="check" for="lm-on"><input type="checkbox" id="lm-on"' + (S.lm.on ? ' checked' : '') + '><span>Zapnout last minute slevu</span></label><div class="two">'
       + '<label class="field" for="lm-pct">Výše slevy<select id="lm-pct">' + [5, 10, 15, 20].map(function (v) { return '<option value="' + v + '"' + (v === S.lm.pct ? ' selected' : '') + '>' + v + ' %</option>'; }).join('') + '</select></label>'
       + '<label class="field" for="lm-h">Platí pro termíny, které začínají do<select id="lm-h">' + [24, 48, 72].map(function (v) { return '<option value="' + v + '"' + (v === S.lm.hours ? ' selected' : '') + '>' + v + ' hodin</option>'; }).join('') + '</select></label></div></div></section>'
-      + '<section class="panel"><div class="panel-h"><h2>Zprávy pacientům</h2>' + info('<p>Do textu můžete vložit <code>{jmeno}</code> (oslovení v 5. pádě), <code>{celejmeno}</code>, <code>{datum}</code>, <code>{cas}</code>, <code>{sluzba}</code>, <code>{cena}</code>, <code>{hygienistka}</code>. Systém je nahradí údaji pacienta.</p><p>S diakritikou a emoji se do jedné SMS vejde 70 znaků, bez nich 160. Telefon i delší zprávu zobrazí jako jednu.</p>') + '</div><div class="form">'
+      + '<section class="panel"><div class="panel-h"><h2>Zprávy pacientům</h2>' + info('<p>Do textu můžete vložit <code>{jmeno}</code> (oslovení v 5. pádě), <code>{celejmeno}</code>, <code>{datum}</code>, <code>{cas}</code>, <code>{sluzba}</code> a <code>{cena}</code>. Systém je nahradí údaji pacienta.</p><p>S diakritikou a emoji se do jedné SMS vejde 70 znaků, bez nich 160. Telefon i delší zprávu zobrazí jako jednu.</p>') + '</div><div class="form">'
       + '<div class="two" style="align-items:end"><label class="field" for="voc-test">Vyzkoušet oslovení<input id="voc-test" placeholder="Napište jméno" value="Zdeněk"></label><p style="padding-bottom:10px">Dobrý den, <b id="voc-out">' + esc(vocative('Zdeněk')) + '</b>,</p></div>'
       + '<label class="field" for="msg-intro">Úvod potvrzovacího e-mailu<textarea id="msg-intro" data-msg="intro" rows="3">' + esc(S.msg.intro) + '</textarea></label>'
       + '<label class="check" for="msg-sms-on"><input type="checkbox" id="msg-sms-on"' + (S.msg.smsOn ? ' checked' : '') + '><span>Posílat po rezervaci i SMS</span></label>'
@@ -1568,12 +1579,11 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
     /* ---------- pacient ---------- */
     if (a.svc) { ui.svc = a.svc; ui.step = 2; ui.date = null; ui.month = null; render(); window.scrollTo(0, 0); return; }
     if (a.go) { ui.step = +a.go; ui.err = ''; render(); window.scrollTo(0, 0); return; }
-    if (a.pstaff !== undefined) { ui.pstaff = a.pstaff; ui.date = null; return render(); }
     if (a.mon) { var m = parse(ui.month); ui.month = iso(new Date(m.getFullYear(), m.getMonth() + (+a.mon), 1)); return render(); }
     if (a.date && a.col === undefined) { ui.date = a.date; ui.allSlots = false; render(); var sp = document.getElementById('slots'); if (sp && sp.scrollIntoView) sp.scrollIntoView({ block: 'start', behavior: 'smooth' }); return; }
     if (a.allslots !== undefined) { ui.allSlots = true; return render(); }
-    if (a.time) { ui.time = +a.time; ui.tstaff = a.tst || ui.pstaff || slotStaff(ui.date, ui.time, svc(ui.svc).dur); ui.step = 3; ui.err = ''; render(); window.scrollTo(0, 0); return; }
-    if (a.quick) { var q = a.quick.split('|'); ui.date = q[0]; ui.time = +q[1]; ui.tstaff = q[2]; ui.step = 3; ui.err = ''; render(); window.scrollTo(0, 0); return; }
+    if (a.time) { ui.time = +a.time; ui.tstaff = ownerAt(ui.date, ui.time); ui.step = 3; ui.err = ''; render(); window.scrollTo(0, 0); return; }
+    if (a.quick) { var q = a.quick.split('|'); ui.date = q[0]; ui.time = +q[1]; ui.tstaff = ownerAt(q[0], +q[1]); ui.step = 3; ui.err = ''; render(); window.scrollTo(0, 0); return; }
     if (a.new !== undefined) { ui.step = 1; ui.svc = null; ui.date = null; ui.pstaff = ''; ui.form = {}; render(); window.scrollTo(0, 0); return; }
     if (a.ics !== undefined) return toast('V e-mailu bude soubor, který termín přidá do kalendáře v telefonu.');
     if (a.cancellink) {
@@ -1703,9 +1713,9 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
     if (!n.name || !n.name.trim()) ui.err = 'Doplňte jméno pacienta.';
     else if (digits(n.phone).length < 9) ui.err = 'Doplňte telefon (aspoň 9 číslic).';
     else if (n.start == null) ui.err = 'Vyberte čas.';
-    else if (slots(n.date, svc(n.svc).dur, null, n.staff).indexOf(n.start) < 0) ui.err = 'Tento čas už není volný.';
+    else if (slots(n.date, svc(n.svc).dur, null, isAdmin() ? undefined : me().id).indexOf(n.start) < 0) ui.err = 'Tento čas už není volný.';
     if (ui.err) return render();
-    var s = svc(n.svc), nb = newBooking({ staff: n.staff, date: n.date, start: n.start, dur: s.dur, svc: n.svc, name: n.name.trim(), phone: n.phone, email: n.email || '', note: '', inote: n.inote || '', status: 'ok', src: 'admin', price: discounted(s.price, lmPct(n.date, n.start)), disc: lmPct(n.date, n.start), log: [], vok: '' });
+    var s = svc(n.svc), nb = newBooking({ staff: ownerAt(n.date, n.start), date: n.date, start: n.start, dur: s.dur, svc: n.svc, name: n.name.trim(), phone: n.phone, email: n.email || '', note: '', inote: n.inote || '', status: 'ok', src: 'admin', price: discounted(s.price, lmPct(n.date, n.start)), disc: lmPct(n.date, n.start), log: [], vok: '' });
     logIt(nb, 'Zadáno v ordinaci'); save();
     closePanel(); ui.sel = nb.id; ui.cur = nb.date; render();
     toast('Objednáno: ' + nb.name + ', ' + dShort(nb.date) + ' ' + hm(nb.start) + (nb.disc ? ' (last minute −' + nb.disc + ' %)' : '') + (nb.email ? '. Pacient dostane potvrzení.' : ''));
@@ -1735,21 +1745,21 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
       else if (digits(fd.phone).length < 9) ui.err = 'Telefon musí mít aspoň 9 číslic.';
       else if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(fd.email)) ui.err = 'Zkontrolujte prosím e-mail, potvrzení přijde právě na něj.';
       else if (!fd.ok) ui.err = 'Pro dokončení je potřeba potvrdit storno podmínky.';
-      else if (slots(ui.date, svc(ui.svc).dur, null, ui.tstaff).indexOf(ui.time) < 0) { ui.err = 'Tento čas si mezitím někdo zarezervoval. Vyberte prosím jiný.'; ui.step = 2; }
+      else if (slots(ui.date, svc(ui.svc).dur, null).indexOf(ui.time) < 0) { ui.err = 'Tento čas si mezitím někdo zarezervoval. Vyberte prosím jiný.'; ui.step = 2; }
       if (ui.err) return render();
       var pct0 = lmPct(ui.date, ui.time), sv0 = svc(ui.svc);
-      var b = newBooking({ staff: ui.tstaff, date: ui.date, start: ui.time, dur: sv0.dur, svc: ui.svc, name: fd.name, phone: fd.phone, email: fd.email, note: fd.note, inote: '', status: 'ok', src: 'web', price: discounted(sv0.price, pct0), disc: pct0, log: [], vok: '' });
+      var b = newBooking({ staff: ownerAt(ui.date, ui.time), date: ui.date, start: ui.time, dur: sv0.dur, svc: ui.svc, name: fd.name, phone: fd.phone, email: fd.email, note: fd.note, inote: '', status: 'ok', src: 'web', price: discounted(sv0.price, pct0), disc: pct0, log: [], vok: '' });
       logIt(b, 'Rezervace přes web' + (pct0 ? ' (sleva last minute ' + pct0 + ' %)' : '')); save();
       ui.last = b.id; ui.step = 4; ui.form = {}; render(); window.scrollTo(0, 0); return;
     }
     if (f.id === 'mf') {
       var mb = byId(S.bookings, ui.sel), m = ui.mv; if (!mb || !m || m.start == null) return;
       var from = dShort(mb.date) + ' ' + hm(mb.start), ns = svc(m.svc);
-      if (slots(m.date, ns.dur, mb.id, m.staff).indexOf(m.start) < 0) { toast('Tento čas už není volný'); return render(); }
+      if (slots(m.date, ns.dur, mb.id, isAdmin() ? undefined : m.staff).indexOf(m.start) < 0) { toast('Tento čas už není volný'); return render(); }
       snap(mb);
       if (m.svc !== mb.svc) { mb.price = ns.price; mb.disc = 0; }
       var handed = m.staff !== mb.staff, fromStaff = staffName(mb.staff);
-      mb.date = m.date; mb.start = m.start; mb.svc = m.svc; mb.dur = ns.dur; mb.staff = m.staff;
+      mb.date = m.date; mb.start = m.start; mb.svc = m.svc; mb.dur = ns.dur; mb.staff = ownerAt(m.date, m.start);
       logIt(mb, 'Přesunuto z ' + from + ' na ' + dShort(mb.date) + ' ' + hm(mb.start) + (handed ? ', předáno od ' + fromStaff + ' k ' + staffName(mb.staff) : '') + (fd.notify ? ', pacient informován' : ''));
       ui.mv = null; ui.moveOpen = false; ui.cur = mb.date; save(); render();
       return toast('Přesunuto na ' + dShort(mb.date) + ' ' + hm(mb.start) + (fd.notify && mb.email ? '. Pacient dostane zprávu.' : ''), true);
@@ -1892,7 +1902,7 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
     if (drag.el.parentNode !== c) c.appendChild(drag.el);
     var r = c.getBoundingClientRect(), b = drag.b, mins = G.GS + Math.round((e.clientY - r.top - drag.offY) / G.PX / S.step) * S.step;
     mins = Math.max(G.GS, Math.min(G.GE - b.dur, mins));
-    var ok = slots(c.dataset.col, b.dur, b.id, b.staff).indexOf(mins) > -1;
+    var ok = slots(c.dataset.col, b.dur, b.id, isAdmin() ? undefined : b.staff).indexOf(mins) > -1;
     drag.to = ok ? { date: c.dataset.col, start: mins } : null;
     drag.el.style.top = ((mins - G.GS) * G.PX + 1) + 'px'; drag.el.classList.toggle('bad', !ok);
     var tl = drag.el.querySelector('.t'); if (tl) tl.textContent = hm(mins) + '–' + hm(mins + b.dur);
