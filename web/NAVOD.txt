@@ -1,0 +1,41 @@
+REZERVACE ADent. – ZKUŠEBNÍ VERZE NAPOJENÁ NA ADMINISTRACI
+=========================================================
+
+Co balíček obsahuje (nic stávajícího se nepřepisuje, jsou to jen nové soubory):
+
+  admin/rezervace.php              ordinace (kalendář, směny, pacienti, vyúčtování) – přihlášení přes admin
+  admin/rezervace-api.php          ukládání dat ordinace
+  admin/rezervace-zpravy.php       přehled odeslaných e-mailů a SMS + vymazání zkušebních dat
+  admin/rezervace-lib-admin.php    pomocný soubor
+  rezervace/                       pacientská objednávka (index.php), aplikace a databáze
+
+JAK NAHRÁT
+1. Rozbalte ZIP u sebe v počítači.
+2. Ve správci souborů Active24 (nebo přes FTP) otevřete kořen webu – složku, kde je index.html a složka admin.
+3. Nahrajte obsah balíčku tak, aby:
+     - soubory admin/rezervace*.php skončily ve stávající složce admin (vedle site.php),
+     - složka rezervace byla vedle složky admin.
+   Žádný existující soubor se nemá přepsat. Kdyby se správce souborů ptal na přepsání, zastavte se a napište mi.
+
+JAK VYZKOUŠET
+1. Přihlaste se do administrace jako obvykle a otevřete:  https://adentdh.com/admin/rezervace.php
+   Při prvním otevření se založí prázdná zkušební databáze (služby, tým, texty – bez pacientů).
+2. Nahoře ve žlutém pruhu je odkaz na pacientskou stránku s přístupovým kódem. Otevřete ho na mobilu
+   a objednejte se. Bez kódu se pacientská stránka nikomu neotevře a vyhledávače ji neindexují.
+3. V ordinaci se objednávka objeví do 20 sekund (nebo hned po obnovení stránky).
+4. E-maily chodí jen na t39.jonas8@gmail.com s předmětem „[ZKOUŠKA] …“ – i když u pacienta
+   zadáte jinou adresu. SMS se neposílají, jen se zapíšou do přehledu „Odeslané zprávy“.
+
+KONTROLA BEZPEČNOSTI (prosím udělejte jednou)
+Otevřete v prohlížeči:  https://adentdh.com/rezervace/data/rezervace.sqlite
+Musí se ukázat chyba „Forbidden“ / „Přístup odepřen“. Kdyby se soubor začal stahovat, napište mi –
+databáze s údaji pacientů nesmí být zvenku dostupná.
+
+KDYŽ E-MAILY NECHODÍ
+Podívejte se do „Odeslané zprávy“. Pokud je u zprávy „Server e-mail nepřijal“, je potřeba v Active24
+povolit odesílání z adresy rezervace@adentdh.com (nebo ji změnit v souboru rezervace/config.php,
+který se vytvoří sám při prvním spuštění). Zkontrolujte i složku Spam.
+
+KONEC ZKOUŠKY
+V „Odeslané zprávy“ je tlačítko „Vymazat zkušební data“. Úplné odstranění: smažte složku rezervace
+a soubory admin/rezervace*.php. Web ani administrace se tím nijak nezmění.

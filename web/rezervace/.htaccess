@@ -1,0 +1,8 @@
+# Rezervace: ven smí jen stránka, rozhraní a soubory aplikace
+Options -Indexes
+<FilesMatch "^(lib|access|config|config\.sample)\.php$">
+  Require all denied
+  <IfModule !mod_authz_core.c>
+    Deny from all
+  </IfModule>
+</FilesMatch>
