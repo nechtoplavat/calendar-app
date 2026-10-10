@@ -4,7 +4,7 @@ declare(strict_types=1);
 require __DIR__ . '/rezervace-lib-admin.php';
 rez_admin_headers();
 header('Content-Type: text/html; charset=utf-8');
-$h = fn($s) => htmlspecialchars((string)$s, ENT_QUOTES, 'UTF-8');
+$h = 'h';
 $msg = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!rez_admin_csrf_ok()) {
@@ -30,12 +30,10 @@ $kinds = ['confirm' => 'Potvrzení pacientovi', 'move' => 'Změna termínu', 'ca
 <title>Odeslané zprávy – rezervace</title>
 <link rel="stylesheet" href="../rezervace/app.css?v=<?= (string)@filemtime(dirname(__DIR__) . '/rezervace/app.css') ?>">
 </head>
-<body>
+<body class="in-admin">
+<?= rez_topbar() ?>
 <div class="wrap">
-  <header class="top">
-    <div class="brand">ADent<span>.</span><small>zprávy</small></div>
-    <nav class="row admnav"><a class="btn ghost sm" href="rezervace.php">← Rezervace</a><a class="btn ghost sm" href="./">Administrace webu</a></nav>
-  </header>
+  <p style="margin-bottom:12px"><a class="btn ghost sm" href="rezervace.php">← Zpět do rezervací</a></p>
   <?php if ($msg): ?><div class="testbar"><?= $h($msg) ?></div><?php endif; ?>
   <section class="panel">
     <div class="panel-h"><h2>Odeslané zprávy</h2><span class="hint">posledních 200</span></div>
@@ -56,7 +54,7 @@ $kinds = ['confirm' => 'Potvrzení pacientovi', 'move' => 'Změna termínu', 'ca
   <section class="panel">
     <div class="panel-h"><h2>Zkušební data</h2></div>
     <p class="hint">Smaže všechny zkušební rezervace, směny, nastavení rezervací a odeslané zprávy. Web ani administrace webu se nezmění.</p>
-    <form method="post" style="margin-top:12px"><input type="hidden" name="rez_csrf" value="<?= $h(rez_admin_csrf()) ?>"><input type="hidden" name="do" value="wipe">
+    <form method="post" style="margin-top:12px"><input type="hidden" name="csrf" value="<?= $h(rez_admin_csrf()) ?>"><input type="hidden" name="do" value="wipe">
       <button class="btn ghost" style="color:var(--bad)">Vymazat zkušební data</button></form>
   </section>
   <?php endif; ?>

@@ -1,13 +1,15 @@
 REZERVACE ADent. – ZKUŠEBNÍ VERZE NAPOJENÁ NA ADMINISTRACI
 =========================================================
 
-Co balíček obsahuje (nic stávajícího se nepřepisuje, jsou to jen nové soubory):
+Co balíček obsahuje:
 
   admin/rezervace.php              ordinace (kalendář, směny, pacienti, vyúčtování) – přihlášení přes admin
   admin/rezervace-api.php          ukládání dat ordinace
   admin/rezervace-zpravy.php       přehled odeslaných e-mailů a SMS + vymazání zkušebních dat
   admin/rezervace-lib-admin.php    pomocný soubor
   rezervace/                       pacientská objednávka (index.php), aplikace a databáze
+  admin/inc/view.php               JEDINÝ PŘEPISOVANÝ SOUBOR – přidává do menu administrace položku „Rezervace“
+                                   (jinak je stejný jako váš; před nahráním si původní uložte jako zálohu)
 
 JAK NAHRÁT
 1. Rozbalte ZIP u sebe v počítači.
@@ -15,10 +17,12 @@ JAK NAHRÁT
 3. Nahrajte obsah balíčku tak, aby:
      - soubory admin/rezervace*.php skončily ve stávající složce admin (vedle site.php),
      - složka rezervace byla vedle složky admin.
-   Žádný existující soubor se nemá přepsat. Kdyby se správce souborů ptal na přepsání, zastavte se a napište mi.
+   Přepsat se smí jen admin/inc/view.php (předtím si ho stáhněte jako zálohu).
+   Kdyby se správce souborů ptal na přepsání jakéhokoli jiného souboru, zastavte se a napište mi.
 
 JAK VYZKOUŠET
-1. Přihlaste se do administrace jako obvykle a otevřete:  https://adentdh.com/admin/rezervace.php
+1. Přihlaste se do administrace jako obvykle a v menu klikněte na „Rezervace“
+   (adresa https://adentdh.com/admin/rezervace.php).
    Při prvním otevření se založí prázdná zkušební databáze (služby, tým, texty – bez pacientů).
 2. Nahoře ve žlutém pruhu je odkaz na pacientskou stránku s přístupovým kódem. Otevřete ho na mobilu
    a objednejte se. Bez kódu se pacientská stránka nikomu neotevře a vyhledávače ji neindexují.
@@ -36,6 +40,10 @@ Podívejte se do „Odeslané zprávy“. Pokud je u zprávy „Server e-mail ne
 povolit odesílání z adresy rezervace@adentdh.com (nebo ji změnit v souboru rezervace/config.php,
 který se vytvoří sám při prvním spuštění). Zkontrolujte i složku Spam.
 
+PŘIHLÁŠENÍ HYGIENISTKY
+Zatím se do rezervací přihlašuje správkyně. Pohled Anety Nevimjakdal si zobrazíte výběrem
+„Zobrazit jako“ vpravo nahoře. Vlastní přihlášení pro hygienistku přijde v dalším kroku.
+
 KONEC ZKOUŠKY
 V „Odeslané zprávy“ je tlačítko „Vymazat zkušební data“. Úplné odstranění: smažte složku rezervace
-a soubory admin/rezervace*.php. Web ani administrace se tím nijak nezmění.
+a soubory admin/rezervace*.php a vraťte zálohu admin/inc/view.php. Web ani administrace se tím nijak nezmění.

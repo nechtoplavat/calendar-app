@@ -240,6 +240,20 @@ td input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--accent)
 .hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
 .sync { position: fixed; left: 12px; bottom: 12px; z-index: 55; font-size: 12px; font-weight: 600; color: var(--muted); background: var(--paper); border: 1px solid var(--line); border-radius: 999px; padding: 4px 10px; }
 .sync.err { color: var(--bad); border-color: var(--bad); } .sync.ok { opacity: .7; }
+/* lišta administrace, když běží rezervace uvnitř adminu */
+.topbar { background: var(--paper); border-bottom: 1px solid var(--line); }
+.topbar-in { max-width: 1880px; margin: 0 auto; padding: 10px 28px; display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+.topbar .brand { text-decoration: none; color: var(--text); display: flex; align-items: baseline; gap: 6px; }
+.topbar .wordmark { font-family: var(--f-d); font-size: 22px; }
+.topbar .brand-sub { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+.topbar .nav { display: flex; gap: 2px; flex: 1; flex-wrap: wrap; }
+.topbar .nav a, .topbar .nav-soon { padding: 8px 12px; border-radius: 10px; text-decoration: none; color: var(--muted); font-size: 14px; font-weight: 600; }
+.topbar .nav a:hover, .topbar .nav a.active { color: var(--text); background: var(--soft); }
+.topbar .nav-soon { opacity: .6; } .topbar .nav-soon i { font-style: normal; font-size: 11px; }
+.topbar .logout { margin: 0; }
+.topbar .btn-ghost { border: 1px solid var(--line); background: none; border-radius: 10px; padding: 7px 12px; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; color: var(--text); }
+body.in-admin .wrap { padding-top: 14px; }
+@media (max-width: 700px) { .topbar-in { padding: 8px 12px; gap: 8px; } .topbar .nav { order: 3; flex-basis: 100%; overflow-x: auto; flex-wrap: nowrap; } .topbar .nav a, .topbar .nav-soon { white-space: nowrap; padding: 6px 9px; font-size: 13px; } }
 .testbar { background: #FFF2C4; color: #5A4300; font-size: 13px; padding: 8px 14px; border-radius: 10px; margin-bottom: 12px; }
 .addst { background: var(--soft); border-radius: 14px; padding: 16px; margin: 4px 0 16px; display: grid; gap: 12px; }
 .addst h3 { font-size: 17px; }
@@ -757,6 +771,9 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
     var m0 = sessionStorage.getItem('rez2_mode'); if (m0) ui.mode = m0;
   } catch (e) {}
   if (SRV) ui.view = SRV;
+  // Přihlášený účet administrace → hygienistka v rezervacích (jinak správkyně)
+  var REAL_ME = SRV === 'adm' ? (document.body.getAttribute('data-rez-me') || '') : '';
+  if (SRV === 'adm') { if (!byId(S.staff, REAL_ME)) REAL_ME = (S.staff.filter(function (x) { return x.role === 'admin'; })[0] || S.staff[0]).id; ui.user = REAL_ME; }
 
   /* ===================== Doména ===================== */
   function svc(id) { return byId(S.services, id); }
@@ -1099,7 +1116,8 @@ details.more > summary, details.acc > summary { cursor: pointer; font-size: 13.5
     if (!tabs.some(function (t) { return t[0] === ui.tab; })) ui.tab = 'kal';
     var m = me();
     var o = '<div class="adm-top"><nav class="tabs" role="tablist">' + tabs.map(function (t) { return '<button type="button" role="tab" class="tab" data-tab="' + t[0] + '" aria-selected="' + (ui.tab === t[0]) + '">' + t[1] + '</button>'; }).join('') + '</nav>'
-      + '<div class="me"><span class="avatar" style="background:' + staffCol(m.id) + '">' + esc(m.short) + '</span><label for="as-user" class="muted"><span>Přihlášena </span><select id="as-user" aria-label="Přepnout účet (jen v ukázce)">' + S.staff.map(function (x) { return '<option value="' + x.id + '"' + (x.id === m.id ? ' selected' : '') + '>' + esc(x.name) + '</option>'; }).join('') + '</select></label></div></div>';
+      + '<div class="me"><span class="avatar" style="background:' + staffCol(m.id) + '">' + esc(m.short) + '</span>' + (SRV && (byId(S.staff, REAL_ME) || {}).role !== 'admin' ? '<b>' + esc(m.name) + '</b>'
+        : '<label for="as-user" class="muted"><span>' + (SRV ? 'Zobrazit jako ' : 'Přihlášena ') + '</span><select id="as-user" aria-label="' + (SRV ? 'Zobrazit ordinaci očima hygienistky' : 'Přepnout účet (jen v ukázce)') + '">' + S.staff.map(function (x) { return '<option value="' + x.id + '"' + (x.id === m.id ? ' selected' : '') + '>' + esc(x.name) + '</option>'; }).join('') + '</select></label>') + '</div></div>';
     if (ui.tab === 'kal') o += admCal();
     if (ui.tab === 'smeny') o += admShifts();
     if (ui.tab === 'pac') o += admPatients();

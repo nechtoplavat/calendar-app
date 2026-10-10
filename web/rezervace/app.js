@@ -245,6 +245,9 @@
     var m0 = sessionStorage.getItem('rez2_mode'); if (m0) ui.mode = m0;
   } catch (e) {}
   if (SRV) ui.view = SRV;
+  // Přihlášený účet administrace → hygienistka v rezervacích (jinak správkyně)
+  var REAL_ME = SRV === 'adm' ? (document.body.getAttribute('data-rez-me') || '') : '';
+  if (SRV === 'adm') { if (!byId(S.staff, REAL_ME)) REAL_ME = (S.staff.filter(function (x) { return x.role === 'admin'; })[0] || S.staff[0]).id; ui.user = REAL_ME; }
 
   /* ===================== Doména ===================== */
   function svc(id) { return byId(S.services, id); }
@@ -587,7 +590,8 @@
     if (!tabs.some(function (t) { return t[0] === ui.tab; })) ui.tab = 'kal';
     var m = me();
     var o = '<div class="adm-top"><nav class="tabs" role="tablist">' + tabs.map(function (t) { return '<button type="button" role="tab" class="tab" data-tab="' + t[0] + '" aria-selected="' + (ui.tab === t[0]) + '">' + t[1] + '</button>'; }).join('') + '</nav>'
-      + '<div class="me"><span class="avatar" style="background:' + staffCol(m.id) + '">' + esc(m.short) + '</span><label for="as-user" class="muted"><span>Přihlášena </span><select id="as-user" aria-label="Přepnout účet (jen v ukázce)">' + S.staff.map(function (x) { return '<option value="' + x.id + '"' + (x.id === m.id ? ' selected' : '') + '>' + esc(x.name) + '</option>'; }).join('') + '</select></label></div></div>';
+      + '<div class="me"><span class="avatar" style="background:' + staffCol(m.id) + '">' + esc(m.short) + '</span>' + (SRV && (byId(S.staff, REAL_ME) || {}).role !== 'admin' ? '<b>' + esc(m.name) + '</b>'
+        : '<label for="as-user" class="muted"><span>' + (SRV ? 'Zobrazit jako ' : 'Přihlášena ') + '</span><select id="as-user" aria-label="' + (SRV ? 'Zobrazit ordinaci očima hygienistky' : 'Přepnout účet (jen v ukázce)') + '">' + S.staff.map(function (x) { return '<option value="' + x.id + '"' + (x.id === m.id ? ' selected' : '') + '>' + esc(x.name) + '</option>'; }).join('') + '</select></label>') + '</div></div>';
     if (ui.tab === 'kal') o += admCal();
     if (ui.tab === 'smeny') o += admShifts();
     if (ui.tab === 'pac') o += admPatients();

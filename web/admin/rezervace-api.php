@@ -1,9 +1,11 @@
 <?php
 // Rozhraní ordinace: načtení a uložení stavu rezervací (jen pro přihlášené do administrace).
 declare(strict_types=1);
+define('REZ_API', 1);
 require __DIR__ . '/rezervace-lib-admin.php';
 
 $a = (string)($_GET['a'] ?? 'state');
+rez_api_user($a !== 'ver');   // kontrola změn přihlášení neprodlužuje
 try {
     if ($a === 'ver') {
         rez_json(['ok' => true, 'version' => rez_load()['version']]);
