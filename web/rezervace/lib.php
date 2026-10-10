@@ -39,8 +39,13 @@ function rez_install_config(string $f): void
         . "    'test_email' => 't39.jonas8@gmail.com',\n"
         . "    // Kam chodí upozornění ordinaci na novou rezervaci\n"
         . "    'clinic_email' => 't39.jonas8@gmail.com',\n"
-        . "    // Odesílatel e-mailů (musí být na doméně webu, jinak je pošta může odmítnout)\n"
-        . "    'mail_from' => 'rezervace@adentdh.com',\n"
+        . "    // Odesílatel e-mailů – skutečná schránka ordinace\n"
+        . "    'mail_from' => 'info@adentdh.cz',\n"
+        . "    // Přihlášení ke schránce (bez něj e-maily často nedorazí). Údaje najdete u poskytovatele pošty.\n"
+        . "    'smtp_host' => '',          // např. smtp.active24.com\n"
+        . "    'smtp_port' => 465,\n"
+        . "    'smtp_user' => 'info@adentdh.cz',\n"
+        . "    'smtp_pass' => '',          // heslo ke schránce info@adentdh.cz\n"
         . "    'mail_from_name' => 'ADent. Dentální hygiena',\n"
         . "    // Přístupový kód pro pacientskou část ve zkušebním režimu\n"
         . "    'access_key' => '" . $key . "',\n"
@@ -447,23 +452,91 @@ function rez_mail(string $kind, ?int $bookingId, string $to, string $subject, st
     $ok = false;
     $err = '';
     if ($to !== '' && filter_var($to, FILTER_VALIDATE_EMAIL)) {
-        $from = (string)rez_cfg('mail_from', 'rezervace@adentdh.com');
-        $name = (string)rez_cfg('mail_from_name', 'ADent.');
-        $headers = 'From: ' . mb_encode_mimeheader($name, 'UTF-8') . ' <' . $from . ">\r\n"
-            . 'Reply-To: ' . (string)rez_cfg('clinic_email', $from) . "\r\n"
-            . "MIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n";
-        $ok = @mail($to, mb_encode_mimeheader($subject, 'UTF-8'), chunk_split(base64_encode($html)), $headers, '-f' . $from);
-        if (!$ok) {
-            $ok = @mail($to, mb_encode_mimeheader($subject, 'UTF-8'), chunk_split(base64_encode($html)), $headers);
-        }
-        if (!$ok) {
-            $err = 'Server e-mail nepřijal k odeslání.';
-        }
+        $ok = rez_send($to, $subject, $html, $err);
     } else {
         $err = 'Chybí platná adresa.';
     }
     rez_db()->prepare('INSERT INTO outbox (t, channel, kind, booking_id, to_addr, orig_to, subject, body, sent, error) VALUES (?,?,?,?,?,?,?,?,?,?)')
         ->execute([time(), 'email', $kind, $bookingId, $to, $orig, $subject, $html, $ok ? 1 : 0, $err]);
+}
+
+// Vlastní odeslání: přes schránku (SMTP), když je v config.php vyplněná – to Gmail a další přijímají spolehlivě.
+// Bez SMTP se použije mail() hostingu (zprávy pak často končí ve spamu nebo je příjemce odmítne).
+function rez_send(string $to, string $subject, string $html, string &$err): bool
+{
+    $from = (string)rez_cfg('mail_from', 'info@adentdh.cz');
+    $name = (string)rez_cfg('mail_from_name', 'ADent.');
+    $reply = (string)rez_cfg('reply_to', rez_cfg('clinic_email', $from));
+    $subj = mb_encode_mimeheader($subject, 'UTF-8', 'B', "\r\n");
+    $body = chunk_split(base64_encode($html));
+    $head = 'From: ' . mb_encode_mimeheader($name, 'UTF-8') . ' <' . $from . ">\r\n"
+        . 'Reply-To: ' . $reply . "\r\n"
+        . "MIME-Version: 1.0\r\nContent-Type: text/html; charset=UTF-8\r\nContent-Transfer-Encoding: base64\r\n";
+    if ((string)rez_cfg('smtp_host', '') !== '') {
+        return rez_smtp($from, $to, "To: <$to>\r\nSubject: $subj\r\nDate: " . date('r') . "\r\nMessage-ID: <" . bin2hex(random_bytes(12)) . '@' . substr(strrchr($from, '@') ?: '@adentdh.cz', 1) . ">\r\n" . $head, $body, $err);
+    }
+    $ok = @mail($to, $subj, $body, $head, '-f' . $from) || @mail($to, $subj, $body, $head);
+    if (!$ok) {
+        $err = 'Server e-mail nepřijal k odeslání.';
+    }
+    return $ok;
+}
+
+// Jednoduchý SMTP klient (SSL na portu 465, nebo STARTTLS na 587) s přihlášením AUTH LOGIN
+function rez_smtp(string $from, string $to, string $headers, string $body, string &$err): bool
+{
+    $host = (string)rez_cfg('smtp_host');
+    $port = (int)rez_cfg('smtp_port', 465);
+    $sec = (string)rez_cfg('smtp_secure', $port === 465 ? 'ssl' : 'tls');
+    $ctx = stream_context_create(['ssl' => ['verify_peer' => true, 'verify_peer_name' => true, 'SNI_enabled' => true]]);
+    $fp = @stream_socket_client(($sec === 'ssl' ? 'ssl://' : 'tcp://') . $host . ':' . $port, $eno, $estr, 20, STREAM_CLIENT_CONNECT, $ctx);
+    if (!$fp) {
+        $err = 'Nelze se připojit k poštovnímu serveru ' . $host . ':' . $port . ' (' . trim((string)$estr) . ').';
+        return false;
+    }
+    stream_set_timeout($fp, 20);
+    $read = function () use ($fp): string {
+        $d = '';
+        while (($l = fgets($fp, 1024)) !== false) {
+            $d .= $l;
+            if (strlen($l) < 4 || $l[3] === ' ') {
+                break;
+            }
+        }
+        return $d;
+    };
+    // $label se ukáže v chybě místo příkazu, aby se do přehledu nikdy nedostalo heslo
+    $step = function (?string $cmd, array $ok, string $label) use ($fp, $read, &$err): bool {
+        if ($cmd !== null) {
+            fwrite($fp, $cmd . "\r\n");
+        }
+        $r = $read();
+        if (!in_array((int)substr($r, 0, 3), $ok, true)) {
+            $err = 'Poštovní server odmítl krok „' . $label . '“: ' . trim(mb_substr($r !== '' ? $r : 'bez odpovědi', 0, 200));
+            return false;
+        }
+        return true;
+    };
+    $me = (string)($_SERVER['SERVER_NAME'] ?? 'adentdh.com');
+    $ok = $step(null, [220], 'spojení') && $step('EHLO ' . $me, [250], 'EHLO');
+    if ($ok && $sec === 'tls') {   // 'none' = bez šifrování (jen pro místní test)
+        $ok = $step('STARTTLS', [220], 'STARTTLS')
+            && @stream_socket_enable_crypto($fp, true, STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT | STREAM_CRYPTO_METHOD_TLSv1_3_CLIENT)
+            && $step('EHLO ' . $me, [250], 'EHLO');
+        if (!$ok && $err === '') {
+            $err = 'Nepodařilo se zapnout šifrování (STARTTLS).';
+        }
+    }
+    $ok = $ok && $step('AUTH LOGIN', [334], 'přihlášení')
+        && $step(base64_encode((string)rez_cfg('smtp_user', $from)), [334], 'jméno schránky')
+        && $step(base64_encode((string)rez_cfg('smtp_pass', '')), [235], 'heslo schránky')
+        && $step('MAIL FROM:<' . $from . '>', [250], 'odesílatel')
+        && $step('RCPT TO:<' . $to . '>', [250, 251], 'příjemce')
+        && $step('DATA', [354], 'DATA')
+        && $step($headers . "\r\n" . $body . "\r\n.", [250], 'odeslání zprávy');
+    @fwrite($fp, "QUIT\r\n");
+    fclose($fp);
+    return $ok;
 }
 
 // SMS zatím jen zapisujeme do přehledu (SMS brána se napojí před ostrým provozem)

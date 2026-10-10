@@ -36,9 +36,15 @@ Musí se ukázat chyba „Forbidden“ / „Přístup odepřen“. Kdyby se soub
 databáze s údaji pacientů nesmí být zvenku dostupná.
 
 KDYŽ E-MAILY NECHODÍ
-Podívejte se do „Odeslané zprávy“. Pokud je u zprávy „Server e-mail nepřijal“, je potřeba v Active24
-povolit odesílání z adresy rezervace@adentdh.com (nebo ji změnit v souboru rezervace/config.php,
-který se vytvoří sám při prvním spuštění). Zkontrolujte i složku Spam.
+Gmail a další odmítají e-maily, které nejdou přes skutečnou schránku. V souboru rezervace/config.php
+vyplňte přihlášení ke schránce info@adentdh.cz:
+    'mail_from' => 'info@adentdh.cz',
+    'smtp_host' => 'smtp.active24.com',   (podle poskytovatele pošty)
+    'smtp_port' => 465,
+    'smtp_user' => 'info@adentdh.cz',
+    'smtp_pass' => 'heslo ke schránce',
+Pak v Rezervacích → Odeslané zprávy klikněte na „Poslat zkušební e-mail“ – ukáže, zda odeslání prošlo,
+případně přesný důvod chyby.
 
 PŘIHLÁŠENÍ HYGIENISTKY
 Zatím se do rezervací přihlašuje správkyně. Pohled Anety Nevimjakdal si zobrazíte výběrem

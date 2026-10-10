@@ -11,6 +11,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         http_response_code(403);
         exit('Neplatný požadavek – obnovte stránku.');
     }
+    if (($_POST['do'] ?? '') === 'test') {
+        $to = rez_cfg('test_mode', true) ? (string)rez_cfg('test_email', '') : (string)rez_cfg('clinic_email', '');
+        rez_mail('test', null, $to, 'Zkušební e-mail z rezervací', '<p style="font-family:Arial">Tento e-mail poslaly rezervace ADent., aby se ověřilo doručování. Pokud ho čtete, e-maily fungují.</p>');
+        $last = rez_db()->query("SELECT sent, error, to_addr FROM outbox ORDER BY id DESC LIMIT 1")->fetch();
+        $msg = $last && $last['sent'] ? 'Zkušební e-mail odešel na ' . $last['to_addr'] . '. Zkontrolujte schránku (i Spam).' : 'Zkušební e-mail se nepodařilo odeslat: ' . ($last['error'] ?? '');
+    }
     if (($_POST['do'] ?? '') === 'wipe' && rez_cfg('test_mode', true)) {
         $db = rez_db();
         $db->exec('DELETE FROM state');
@@ -20,7 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 $rows = rez_db()->query('SELECT * FROM outbox ORDER BY id DESC LIMIT 200')->fetchAll();
-$kinds = ['confirm' => 'Potvrzení pacientovi', 'move' => 'Změna termínu', 'cancel' => 'Zrušení', 'clinic' => 'Upozornění ordinaci'];
+$kinds = ['test' => 'Zkušební e-mail', 'confirm' => 'Potvrzení pacientovi', 'move' => 'Změna termínu', 'cancel' => 'Zrušení', 'clinic' => 'Upozornění ordinaci'];
 ?><!doctype html>
 <html lang="cs">
 <head>
@@ -49,6 +55,17 @@ $kinds = ['confirm' => 'Potvrzení pacientovi', 'move' => 'Změna termínu', 'ca
       </details>
     <?php endforeach; ?>
     </div>
+  </section>
+  <section class="panel">
+    <div class="panel-h"><h2>Odesílání e-mailů</h2></div>
+    <?php if ((string)rez_cfg('smtp_host', '') !== ''): ?>
+      <p>E-maily odcházejí přes schránku <b><?= $h(rez_cfg('smtp_user', rez_cfg('mail_from'))) ?></b> (server <?= $h(rez_cfg('smtp_host')) ?>).</p>
+    <?php else: ?>
+      <p>E-maily odcházejí přes funkci hostingu z adresy <b><?= $h(rez_cfg('mail_from')) ?></b>. Gmail a další je často odmítnou nebo dají do spamu –
+        doporučujeme v souboru <code>rezervace/config.php</code> vyplnit přihlášení ke skutečné schránce (smtp_…).</p>
+    <?php endif; ?>
+    <form method="post" style="margin-top:12px"><input type="hidden" name="csrf" value="<?= $h(rez_admin_csrf()) ?>"><input type="hidden" name="do" value="test">
+      <button class="btn ghost">Poslat zkušební e-mail</button></form>
   </section>
   <?php if (rez_cfg('test_mode', true)): ?>
   <section class="panel">
