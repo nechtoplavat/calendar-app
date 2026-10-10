@@ -37,6 +37,8 @@ function rez_install_config(string $f): void
         . "    // Zkušební režim: všechny e-maily jdou jen na test_email, pacientská stránka je jen s přístupovým kódem.\n"
         . "    'test_mode' => true,\n"
         . "    'test_email' => 't39.jonas8@gmail.com',\n"
+        . "    // Adresy, na které ve zkušebním režimu chodí e-maily opravdu (ostatní jdou na test_email)\n"
+        . "    'test_allow' => ['t39.jonas8@gmail.com'],\n"
         . "    // Kam chodí upozornění ordinaci na novou rezervaci\n"
         . "    'clinic_email' => 't39.jonas8@gmail.com',\n"
         . "    // Odesílatel e-mailů – skutečná schránka ordinace\n"
@@ -443,7 +445,11 @@ function rez_mail(string $kind, ?int $bookingId, string $to, string $subject, st
 {
     $test = (bool)rez_cfg('test_mode', true);
     $orig = $to;
-    if ($test) {
+    // Ve zkušebním režimu jdou e-maily opravdu jen na adresy ze seznamu test_allow, jinak na zkušební adresu
+    $allow = array_map(fn($x) => mb_strtolower(trim((string)$x)), (array)rez_cfg('test_allow', []));
+    if ($test && in_array(mb_strtolower(trim($to)), $allow, true)) {
+        $subject = '[ZKOUŠKA] ' . $subject;
+    } elseif ($test) {
         $to = (string)rez_cfg('test_email', '');
         $subject = '[ZKOUŠKA] ' . $subject;
         $html = '<div style="background:#FFF2C4;padding:8px 12px;margin-bottom:14px;font:13px Arial">Zkušební verze rezervací – zpráva by šla na: <b>'
